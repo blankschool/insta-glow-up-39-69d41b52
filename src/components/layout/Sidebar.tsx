@@ -10,8 +10,10 @@ import {
   TrendingUp,
   Instagram,
   LogOut,
+  Facebook,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface NavItem {
   label: string;
@@ -33,7 +35,9 @@ const mainNavItems: NavItem[] = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, connectedAccounts, connectWithInstagram, connectWithFacebook } = useAuth();
+
+  const hasConnectedAccount = connectedAccounts && connectedAccounts.length > 0;
 
   const isDemoMode = localStorage.getItem('demoMode') === 'true';
 
@@ -90,19 +94,42 @@ export function Sidebar() {
 
       {/* User section */}
       <div className="mt-auto">
-        <div className="mb-3 rounded-xl border border-border bg-secondary/50 p-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-full border border-border bg-background" />
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium">
-                {isDemoMode ? 'Demo User' : user?.email || 'Usuário'}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {isDemoMode ? 'Modo demonstração' : 'Conta conectada'}
-              </p>
+        {!hasConnectedAccount ? (
+          <div className="mb-3 space-y-2">
+            <p className="text-xs text-muted-foreground text-center mb-3">Conecte sua conta</p>
+            <Button 
+              onClick={connectWithInstagram}
+              size="sm"
+              className="w-full gap-2"
+            >
+              <Instagram className="h-4 w-4" />
+              Conectar Instagram
+            </Button>
+            <Button 
+              onClick={connectWithFacebook}
+              size="sm"
+              variant="outline"
+              className="w-full gap-2"
+            >
+              <Facebook className="h-4 w-4" />
+              Conectar Facebook
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-3 rounded-xl border border-border bg-secondary/50 p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-full border border-border bg-background" />
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {isDemoMode ? 'Demo User' : user?.email || 'Usuário'}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {isDemoMode ? 'Modo demonstração' : 'Conta conectada'}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <button
           onClick={handleSignOut}
           className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
