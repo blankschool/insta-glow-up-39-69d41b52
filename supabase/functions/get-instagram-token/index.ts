@@ -12,29 +12,39 @@ serve(async (req) => {
   }
 
   try {
-    const { user_id } = await req.json();
-    
-    if (!user_id) {
-      throw new Error('User ID is required');
+    // Verify JWT and get authenticated user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Create client with user's JWT to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Fetching token for user:', user_id);
-
-    // Get the most recent connected account for the user
+    // Get the most recent connected account for the authenticated user
     const { data, error } = await supabase
       .from('connected_accounts')
       .select('access_token, provider_account_id, token_expires_at')
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(1)
       .single();
 
     if (error) {
-      console.error('Database error:', error);
       throw new Error('No connected account found');
     }
 
@@ -47,13 +57,9 @@ serve(async (req) => {
       const expiresAt = new Date(data.token_expires_at);
       const now = new Date();
       if (expiresAt <= now) {
-        console.log('Token expired, needs refresh');
-        // TODO: Implement token refresh logic
         throw new Error('Token expired. Please reconnect your account.');
       }
     }
-
-    console.log('Token retrieved successfully');
 
     return new Response(JSON.stringify({
       access_token: data.access_token,
@@ -66,7 +72,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Get token error:', errorMessage);
     return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
+      status: error instanceof Error && errorMessage === 'Unauthorized' ? 401 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

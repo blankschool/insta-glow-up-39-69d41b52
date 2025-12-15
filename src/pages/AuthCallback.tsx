@@ -27,14 +27,28 @@ export default function AuthCallback() {
         return;
       }
 
-      // Validate state parameter
-      const storedState = localStorage.getItem('oauth_state');
+      // Validate state parameter (use sessionStorage)
+      const storedState = sessionStorage.getItem('oauth_state');
       if (!stateParam || stateParam !== storedState) {
-        console.error('State mismatch:', { stateParam, storedState });
+        console.error('State mismatch');
         setStatus('Invalid authentication session');
-        localStorage.removeItem('oauth_state');
+        sessionStorage.removeItem('oauth_state');
         setTimeout(() => navigate('/auth?error=invalid_state'), 2000);
         return;
+      }
+
+      // Validate state timestamp (max 5 minutes)
+      try {
+        const stateData = JSON.parse(atob(stateParam));
+        const stateAge = Date.now() - stateData.timestamp;
+        if (stateAge > 5 * 60 * 1000) {
+          setStatus('Authentication session expired');
+          sessionStorage.removeItem('oauth_state');
+          setTimeout(() => navigate('/auth?error=invalid_state'), 2000);
+          return;
+        }
+      } catch (e) {
+        console.warn('Could not validate state timestamp');
       }
 
       // Parse state to get login method
@@ -47,14 +61,14 @@ export default function AuthCallback() {
       }
 
       // Clear stored state
-      localStorage.removeItem('oauth_state');
+      sessionStorage.removeItem('oauth_state');
 
       // Check if user is logged in
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setStatus('Please sign in first');
-        localStorage.setItem('pending_oauth_code', code);
-        localStorage.setItem('pending_oauth_method', loginMethod);
+        sessionStorage.setItem('pending_oauth_code', code);
+        sessionStorage.setItem('pending_oauth_method', loginMethod);
         setTimeout(() => navigate('/auth?error=no_session'), 2000);
         return;
       }
@@ -65,7 +79,6 @@ export default function AuthCallback() {
         const { data, error: fnError } = await supabase.functions.invoke('instagram-oauth', {
           body: { 
             code,
-            user_id: session.user.id,
             provider: loginMethod
           }
         });
@@ -74,10 +87,10 @@ export default function AuthCallback() {
 
         if (data?.success) {
           setStatus('Account connected successfully! Redirecting...');
-          // Clear any old localStorage tokens
-          localStorage.removeItem('instagram_access_token');
-          localStorage.removeItem('instagram_user_id');
-          localStorage.removeItem('auth_redirect_to');
+          // Clear any old sessionStorage tokens
+          sessionStorage.removeItem('instagram_access_token');
+          sessionStorage.removeItem('instagram_user_id');
+          sessionStorage.removeItem('auth_redirect_to');
           
           // Refresh connected accounts in context
           await refreshConnectedAccounts();

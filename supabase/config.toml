@@ -1,10 +1,10 @@
 project_id = "xftrrfomvmvllnwjroxp"
 
 [functions.instagram-api]
-verify_jwt = false
+verify_jwt = true
 
 [functions.instagram-oauth]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-instagram-token]
-verify_jwt = false
+verify_jwt = true

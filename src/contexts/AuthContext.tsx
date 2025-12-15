@@ -95,14 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const generateOAuthState = (loginMethod: string, redirectTo: string = '/') => {
+  const generateOAuthState = (loginMethod: string, redirectTo: string = '/profile') => {
     const state = btoa(JSON.stringify({
       nonce: crypto.randomUUID(),
       login_method: loginMethod,
       redirect_to: redirectTo,
       timestamp: Date.now(),
     }));
-    localStorage.setItem('oauth_state', state);
+    // Use sessionStorage instead of localStorage for shorter lifetime
+    sessionStorage.setItem('oauth_state', state);
     return state;
   };
 
@@ -117,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       'instagram_business_manage_insights'
     ].join(',');
     
-    const state = generateOAuthState('instagram', localStorage.getItem('auth_redirect_to') || '/');
+    const state = generateOAuthState('instagram', sessionStorage.getItem('auth_redirect_to') || '/profile');
     
     const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
     
@@ -137,9 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       'pages_read_engagement'
     ].join(',');
     
-    const state = generateOAuthState('facebook', localStorage.getItem('auth_redirect_to') || '/');
+    const state = generateOAuthState('facebook', sessionStorage.getItem('auth_redirect_to') || '/profile');
     
-    // Use Facebook OAuth endpoint with Instagram scopes
     const facebookAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
     
     window.location.href = facebookAuthUrl;
@@ -171,12 +171,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // Clear any localStorage data
-    localStorage.removeItem('instagram_access_token');
-    localStorage.removeItem('instagram_user_id');
-    localStorage.removeItem('demoMode');
-    localStorage.removeItem('oauth_state');
-    localStorage.removeItem('auth_redirect_to');
+    // Clear storage data
+    sessionStorage.removeItem('instagram_access_token');
+    sessionStorage.removeItem('instagram_user_id');
+    sessionStorage.removeItem('oauth_state');
+    sessionStorage.removeItem('auth_redirect_to');
     setConnectedAccounts([]);
   };
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstagramApi, InstagramProfile, InstagramAccount, InstagramMedia, AudienceDemographics } from '@/hooks/useInstagramApi';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +30,9 @@ export function InstagramProvider({ children }: { children: React.ReactNode }) {
   const [onlineFollowers, setOnlineFollowers] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use ref to track if data has been loaded for the current user
+  const loadedUserIdRef = useRef<string | null>(null);
 
   const loadAccountData = useCallback(async (account: InstagramAccount) => {
     setLoading(true);
@@ -67,24 +70,29 @@ export function InstagramProvider({ children }: { children: React.ReactNode }) {
 
   // Load Instagram data when user has connected accounts
   useEffect(() => {
-    const loadAccounts = async () => {
-      // Clear data if no user or no connected accounts
-      if (!user || connectedAccounts.length === 0) {
-        setAccounts([]);
-        setSelectedAccount(null);
-        setProfile(null);
-        setMedia([]);
-        setDemographics({});
-        setOnlineFollowers({});
-        return;
-      }
+    // Clear data if no user or no connected accounts
+    if (!user || connectedAccounts.length === 0) {
+      setAccounts([]);
+      setSelectedAccount(null);
+      setProfile(null);
+      setMedia([]);
+      setDemographics({});
+      setOnlineFollowers({});
+      loadedUserIdRef.current = null;
+      return;
+    }
 
-      // User has connected accounts - load data
+    // Skip if already loaded for this user
+    if (loadedUserIdRef.current === user.id) {
+      return;
+    }
+
+    const loadAccounts = async () => {
       setLoading(true);
       try {
         // Get the access token from database via edge function
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-instagram-token', {
-          body: { user_id: user.id }
+          body: {}
         });
 
         if (tokenError) {
@@ -95,9 +103,9 @@ export function InstagramProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (tokenData?.access_token && tokenData?.instagram_user_id) {
-          // Store token temporarily for API calls
-          localStorage.setItem('instagram_access_token', tokenData.access_token);
-          localStorage.setItem('instagram_user_id', tokenData.instagram_user_id);
+          // Store token temporarily in sessionStorage for API calls
+          sessionStorage.setItem('instagram_access_token', tokenData.access_token);
+          sessionStorage.setItem('instagram_user_id', tokenData.instagram_user_id);
 
           // Get profile directly
           const profileData = await api.getUserProfile(tokenData.instagram_user_id);
@@ -122,6 +130,9 @@ export function InstagramProvider({ children }: { children: React.ReactNode }) {
             setMedia(mediaData);
             setDemographics(demographicsData);
             setOnlineFollowers(onlineData);
+            
+            // Mark as loaded for this user
+            loadedUserIdRef.current = user.id;
           }
         }
       } catch (err: any) {
@@ -133,7 +144,7 @@ export function InstagramProvider({ children }: { children: React.ReactNode }) {
     };
 
     loadAccounts();
-  }, [user, connectedAccounts, api]);
+  }, [user?.id, connectedAccounts.length, api]);
 
   return (
     <InstagramContext.Provider value={{
