@@ -19,7 +19,7 @@ const Auth = () => {
   // Email form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  
 
   // Check for error in URL params
   useEffect(() => {
@@ -61,7 +61,7 @@ const Auth = () => {
           description: 'You are now signed in.',
         });
       } else {
-        const { error } = await signUpWithEmail(email, password, fullName);
+        const { error } = await signUpWithEmail(email, password);
         if (error) throw error;
         toast({
           title: 'Account created',
@@ -187,20 +187,6 @@ const Auth = () => {
                 </TabsList>
                 
                 <form onSubmit={handleEmailAuth} className="space-y-4">
-                  <TabsContent value="signup" className="mt-0">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName">Full name</Label>
-                      <Input
-                        id="fullName"
-                        type="text"
-                        placeholder="Your name"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="rounded-xl"
-                      />
-                    </div>
-                  </TabsContent>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
