@@ -38,14 +38,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithFacebook = async () => {
-    const redirectUrl = 'https://insta-glow-up-39.lovable.app/';
-    await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: {
-        redirectTo: redirectUrl,
-        scopes: 'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management,instagram_manage_comments,pages_manage_metadata',
-      },
-    });
+    const clientId = '1728352261135208';
+    const redirectUri = 'https://xftrrfomvmvllnwjroxp.supabase.co/auth/v1/callback';
+    const scopes = [
+      'instagram_business_basic',
+      'instagram_business_manage_messages',
+      'instagram_business_manage_comments',
+      'instagram_business_content_publish',
+      'instagram_business_manage_insights'
+    ].join(',');
+    
+    const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}`;
+    
+    window.location.href = instagramAuthUrl;
   };
 
   const signOut = async () => {
