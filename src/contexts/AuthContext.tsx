@@ -20,6 +20,7 @@ interface AuthContextType {
   loadingAccounts: boolean;
   connectWithInstagram: () => Promise<void>;
   connectWithFacebook: () => Promise<void>;
+  disconnectAccount: (accountId: string) => Promise<{ error: Error | null }>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUpWithEmail: (email: string, password: string, fullName?: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -169,6 +170,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
+  const disconnectAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase
+        .from('connected_accounts')
+        .delete()
+        .eq('id', accountId);
+
+      if (error) {
+        console.error('Error disconnecting account:', error);
+        return { error: new Error(error.message) };
+      }
+
+      // Clear session storage tokens
+      sessionStorage.removeItem('instagram_access_token');
+      sessionStorage.removeItem('instagram_user_id');
+
+      // Refresh the accounts list
+      if (user) {
+        await fetchConnectedAccounts(user.id);
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error('Error disconnecting account:', err);
+      return { error: err as Error };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     // Clear storage data
@@ -188,6 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loadingAccounts,
       connectWithInstagram, 
       connectWithFacebook,
+      disconnectAccount,
       signInWithEmail,
       signUpWithEmail,
       signOut,

@@ -1,13 +1,28 @@
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstagram } from '@/contexts/InstagramContext';
 import { Button } from '@/components/ui/button';
-import { Instagram, Facebook, User, Loader2 } from 'lucide-react';
+import { Instagram, Facebook, User, Loader2, Unlink } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Profile = () => {
-  const { connectedAccounts, connectWithInstagram, connectWithFacebook } = useAuth();
+  const { connectedAccounts, connectWithInstagram, connectWithFacebook, disconnectAccount } = useAuth();
   const { profile, loading } = useInstagram();
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const hasConnectedAccount = connectedAccounts && connectedAccounts.length > 0;
+
+  const handleDisconnect = async (accountId: string) => {
+    setDisconnecting(true);
+    const { error } = await disconnectAccount(accountId);
+    setDisconnecting(false);
+    
+    if (error) {
+      toast.error('Erro ao desconectar conta');
+    } else {
+      toast.success('Conta desconectada com sucesso');
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -103,6 +118,23 @@ const Profile = () => {
               <p className="text-sm">{profile.biography}</p>
             </div>
           )}
+
+          <div className="pt-4 border-t border-border">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleDisconnect(connectedAccounts[0].id)}
+              disabled={disconnecting}
+              className="gap-2"
+            >
+              {disconnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Unlink className="w-4 h-4" />
+              )}
+              Desconectar conta
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="chart-card p-8 text-center">

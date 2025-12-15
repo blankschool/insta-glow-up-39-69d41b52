@@ -11,9 +11,11 @@ import {
   Instagram,
   LogOut,
   Facebook,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface NavItem {
   label: string;
@@ -35,7 +37,7 @@ const mainNavItems: NavItem[] = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, connectedAccounts, connectWithInstagram, connectWithFacebook } = useAuth();
+  const { user, signOut, connectedAccounts, connectWithInstagram, connectWithFacebook, disconnectAccount } = useAuth();
 
   const hasConnectedAccount = connectedAccounts && connectedAccounts.length > 0;
 
@@ -139,6 +141,20 @@ export function Sidebar() {
                   {connectedAccounts[0]?.provider === 'facebook' ? 'Facebook' : 'Instagram'}
                 </p>
               </div>
+              <button
+                onClick={async () => {
+                  const { error } = await disconnectAccount(connectedAccounts[0].id);
+                  if (error) {
+                    toast.error('Erro ao desconectar');
+                  } else {
+                    toast.success('Conta desconectada');
+                  }
+                }}
+                className="p-1 rounded-md hover:bg-background text-muted-foreground hover:text-foreground transition-colors"
+                title="Desconectar conta"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
