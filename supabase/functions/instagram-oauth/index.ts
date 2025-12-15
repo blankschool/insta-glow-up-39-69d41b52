@@ -13,23 +13,35 @@ serve(async (req) => {
   }
 
   try {
-    const { code, user_id, provider = 'instagram' } = await req.json();
+    // Verify JWT and get authenticated user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Create client with user's JWT to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    const { code, provider = 'instagram' } = await req.json();
     
     if (!code) {
       throw new Error('Authorization code is required');
     }
 
-    if (!user_id) {
-      throw new Error('User ID is required');
-    }
-
     const clientId = Deno.env.get('INSTAGRAM_APP_ID');
     const clientSecret = Deno.env.get('INSTAGRAM_APP_SECRET');
     const redirectUri = 'https://insta-glow-up-39.lovable.app/auth/callback';
-
-    console.log('Exchanging code for short-lived token...');
-    console.log('Provider:', provider);
-    console.log('User ID:', user_id);
 
     let accessToken: string;
     let instagramUserId: string;
@@ -42,7 +54,6 @@ serve(async (req) => {
       );
 
       const tokenData = await tokenResponse.json();
-      console.log('Facebook token response:', JSON.stringify(tokenData));
 
       if (tokenData.error) {
         throw new Error(tokenData.error.message);
@@ -54,14 +65,13 @@ serve(async (req) => {
       );
 
       const longLivedData = await longLivedResponse.json();
-      console.log('Facebook long-lived token response:', JSON.stringify(longLivedData));
 
       if (longLivedData.error) {
         throw new Error(longLivedData.error.message);
       }
 
       accessToken = longLivedData.access_token;
-      expiresIn = longLivedData.expires_in || 5184000; // Default 60 days
+      expiresIn = longLivedData.expires_in || 5184000;
 
       // Get Instagram business account ID via Facebook Pages
       const pagesResponse = await fetch(
@@ -102,7 +112,6 @@ serve(async (req) => {
       });
 
       const tokenData = await tokenResponse.json();
-      console.log('Instagram token response:', JSON.stringify(tokenData));
 
       if (tokenData.error_message) {
         throw new Error(tokenData.error_message);
@@ -112,13 +121,11 @@ serve(async (req) => {
       instagramUserId = igUserId;
 
       // Exchange short-lived token for long-lived token
-      console.log('Exchanging for long-lived token...');
       const longLivedResponse = await fetch(
         `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${clientSecret}&access_token=${shortLivedToken}`
       );
 
       const longLivedData = await longLivedResponse.json();
-      console.log('Long-lived token response:', JSON.stringify(longLivedData));
 
       if (longLivedData.error) {
         throw new Error(longLivedData.error.message);
@@ -129,25 +136,20 @@ serve(async (req) => {
     }
 
     // Get Instagram profile info
-    console.log('Fetching Instagram profile...');
     const profileResponse = await fetch(
       `https://graph.instagram.com/v18.0/${instagramUserId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
     );
     const profileData = await profileResponse.json();
-    console.log('Profile data:', JSON.stringify(profileData));
 
-    // Save to database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Save to database using service role
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-    console.log('Saving connected account to database...');
     const { error: upsertError } = await supabase
       .from('connected_accounts')
       .upsert({
-        user_id: user_id,
+        user_id: user.id,
         provider: provider,
         provider_account_id: instagramUserId,
         access_token: accessToken,
@@ -165,8 +167,6 @@ serve(async (req) => {
       throw new Error('Failed to save connected account');
     }
 
-    console.log('Connected account saved successfully');
-
     return new Response(JSON.stringify({
       success: true,
       provider: provider,
@@ -180,7 +180,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Instagram OAuth error:', errorMessage);
     return new Response(JSON.stringify({ error: errorMessage, success: false }), {
-      status: 500,
+      status: error instanceof Error && errorMessage === 'Unauthorized' ? 401 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface InstagramProfile {
@@ -51,11 +51,8 @@ export function useInstagramApi() {
   const [error, setError] = useState<string | null>(null);
 
   const getAccessToken = useCallback(() => {
-    // Get token from localStorage (set by InstagramContext after fetching from DB)
-    const storedToken = localStorage.getItem('instagram_access_token');
-    if (storedToken) return storedToken;
-    
-    return null;
+    // Use sessionStorage instead of localStorage for security
+    return sessionStorage.getItem('instagram_access_token');
   }, []);
 
   const callInstagramApi = useCallback(async (action: string, params: Record<string, any> = {}) => {
@@ -192,7 +189,8 @@ export function useInstagramApi() {
     }
   }, [callInstagramApi]);
 
-  return {
+  // Memoize return object to prevent infinite loops
+  return useMemo(() => ({
     loading,
     error,
     getInstagramAccounts,
@@ -203,5 +201,16 @@ export function useInstagramApi() {
     getAudienceDemographics,
     getOnlineFollowers,
     getStories,
-  };
+  }), [
+    loading,
+    error,
+    getInstagramAccounts,
+    getUserProfile,
+    getMedia,
+    getMediaInsights,
+    getUserInsights,
+    getAudienceDemographics,
+    getOnlineFollowers,
+    getStories,
+  ]);
 }
