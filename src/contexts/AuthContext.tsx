@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       provider: 'facebook',
       options: {
         redirectTo: redirectUrl,
-        scopes: 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+        scopes: 'instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management,instagram_manage_comments,pages_manage_metadata',
       },
     });
   };
