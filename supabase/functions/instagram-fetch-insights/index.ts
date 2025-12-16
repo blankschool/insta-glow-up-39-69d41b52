@@ -185,18 +185,19 @@ serve(async (req) => {
     // ============================================
     console.log('[instagram-fetch-insights] Fetching demographics...');
     
-    // Demographics require timeframe parameter in v24.0
-    // Valid timeframes: last_14_days, last_30_days, last_90_days, this_month, this_week, prev_month
-    const demoMetrics = 'follower_demographics,engaged_audience_demographics,reached_audience_demographics';
-    const demoUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${demoMetrics}&period=lifetime&timeframe=last_30_days&metric_type=total_value&access_token=${accessToken}`;
+    // Demographics in v24.0: use breakdown parameter, NO metric_type
+    // breakdown options: age, gender, country, city
+    // Only use follower_demographics and engaged_audience_demographics (reached requires extra permissions)
+    const demoMetrics = 'follower_demographics,engaged_audience_demographics';
+    const demoUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${demoMetrics}&period=lifetime&timeframe=last_30_days&breakdown=age,gender,country,city&access_token=${accessToken}`;
     const demoRes = await fetchWithRetry(demoUrl);
     const demographics = await demoRes.json();
 
     if (demographics.error) {
-      console.error('[instagram-fetch-insights] Demographics error:', demographics.error.message);
+      console.error('[instagram-fetch-insights] Demographics error:', JSON.stringify(demographics.error));
       // Note: Demographics require 100+ followers and may take 48h to appear
     } else {
-      console.log('[instagram-fetch-insights] Demographics fetched successfully');
+      console.log('[instagram-fetch-insights] Demographics fetched:', JSON.stringify(demographics.data?.length || 0), 'metrics');
     }
 
     // ============================================
@@ -232,14 +233,20 @@ serve(async (req) => {
     // ============================================
     console.log('[instagram-fetch-insights] Fetching post insights...');
     
-    // Valid metrics for v24.0 (engagement is DEPRECATED, clips_replays_count is DEPRECATED)
-    // For IMAGE/CAROUSEL_ALBUM: only reach, saved are reliable
-    // For VIDEO/REELS: reach, saved, views, total_interactions
-    // Note: CAROUSEL_ALBUM insights are NOT available per Instagram API docs
-    const imageMetrics = 'reach,saved';
-    const videoMetrics = 'reach,saved,views,total_interactions';
+    // Valid metrics for v24.0 - different metrics for different media types
+    // IMAGE: impressions, reach, saved, video_views NOT available
+    // VIDEO/REELS: impressions, reach, saved, video_views, plays, total_interactions
+    // CAROUSEL_ALBUM: NO insights available via API (use like_count/comments_count)
+    // Note: "views" replaces "impressions" in some contexts but not for post-level
+    const imageMetrics = 'impressions,reach,saved';
+    const videoMetrics = 'impressions,reach,saved,plays,total_interactions';
     
-    const postsWithInsights = await Promise.all(allPosts.map(async (post: any) => {
+    // Log first post to debug
+    if (allPosts.length > 0) {
+      console.log('[instagram-fetch-insights] First post type:', allPosts[0].media_type, 'id:', allPosts[0].id);
+    }
+    
+    const postsWithInsights = await Promise.all(allPosts.map(async (post: any, index: number) => {
       try {
         // CAROUSEL_ALBUM does not support insights - skip API call
         if (post.media_type === 'CAROUSEL_ALBUM') {
@@ -247,7 +254,6 @@ serve(async (req) => {
             ...post, 
             insights: { 
               _note: 'CAROUSEL_ALBUM insights not available via API',
-              // Use like_count and comments_count as engagement proxies
               likes: post.like_count || 0,
               comments: post.comments_count || 0,
             } 
@@ -258,16 +264,22 @@ serve(async (req) => {
         const metrics = isVideo ? videoMetrics : imageMetrics;
         
         const piUrl = `https://graph.facebook.com/v24.0/${post.id}/insights?metric=${metrics}&access_token=${accessToken}`;
-        const piRes = await fetch(piUrl); // Don't retry individual posts to avoid timeout
+        const piRes = await fetch(piUrl);
         const piData = await piRes.json();
 
+        // Log first few posts for debugging
+        if (index < 3) {
+          console.log(`[instagram-fetch-insights] Post ${index} (${post.media_type}) insights response:`, 
+            piData.error ? piData.error.message : `${piData.data?.length || 0} metrics`);
+        }
+
         if (piData.error) {
-          console.log(`[instagram-fetch-insights] Post ${post.id} insights error:`, piData.error.message);
           return { 
             ...post, 
             insights: {
               likes: post.like_count || 0,
               comments: post.comments_count || 0,
+              _error: piData.error.message,
             } 
           };
         }
@@ -282,12 +294,13 @@ serve(async (req) => {
         insights.comments = post.comments_count || 0;
 
         return { ...post, insights };
-      } catch {
+      } catch (err: any) {
         return { 
           ...post, 
           insights: {
             likes: post.like_count || 0,
             comments: post.comments_count || 0,
+            _error: err.message,
           } 
         };
       }
