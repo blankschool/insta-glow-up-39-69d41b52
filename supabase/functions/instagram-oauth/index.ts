@@ -2,6 +2,9 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Centralized Graph API version - use v24.0 consistently
+const GRAPH_API_VERSION = 'v24.0';
+
 // Allowed origins for CORS
 const allowedOrigins = [
   'https://insta-glow-up-39.lovable.app',
@@ -182,7 +185,7 @@ serve(async (req) => {
     } else {
       // For direct Instagram OAuth, use Instagram Graph API
       const profileResponse = await fetch(
-        `https://graph.instagram.com/v18.0/${instagramUserId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+        `https://graph.instagram.com/${GRAPH_API_VERSION}/${instagramUserId}?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
       );
       profileData = await profileResponse.json();
       console.log('Instagram profile data:', JSON.stringify(profileData));

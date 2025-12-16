@@ -2,6 +2,9 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Centralized Graph API version - use v24.0 consistently
+const GRAPH_API_VERSION = 'v24.0';
+
 // Allowed origins for CORS
 const allowedOrigins = [
   'https://insta-glow-up-39.lovable.app',
@@ -114,7 +117,7 @@ serve(async (req) => {
       throw new Error('Invalid metrics format');
     }
 
-    const baseUrl = 'https://graph.facebook.com/v18.0';
+    const baseUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
     let response;
     let data;
 
