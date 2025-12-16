@@ -1,6 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { Download, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ExportDropdown } from '@/components/ExportDropdown';
 
 const pageNames: Record<string, string> = {
   '/': 'Audience',
@@ -10,6 +9,12 @@ const pageNames: Record<string, string> = {
   '/profile': 'Profile',
   '/mentions': 'Mentions',
   '/benchmarks': 'Benchmarks',
+  '/overview': 'Overview',
+  '/growth': 'Growth',
+  '/performance': 'Performance',
+  '/demographics': 'Demographics',
+  '/reels': 'Reels & Videos',
+  '/online-followers': 'Online Followers',
 };
 
 export function Topbar() {
@@ -44,10 +49,7 @@ export function Topbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2.5">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
+          <ExportDropdown />
         </div>
       </div>
     </header>

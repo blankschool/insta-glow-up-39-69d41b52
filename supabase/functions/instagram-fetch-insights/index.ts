@@ -43,6 +43,32 @@ const getCorsHeaders = (origin: string | null) => {
   };
 };
 
+// Retry helper with exponential backoff
+async function fetchWithRetry(url: string, maxRetries = 5): Promise<Response> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch(url);
+      const json = await res.clone().json();
+      
+      // Check for transient errors (code 2)
+      if (json.error?.code === 2) {
+        const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s, 8s, 16s
+        console.log(`[instagram-fetch-insights] Transient error, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      return res;
+    } catch (err) {
+      if (i === maxRetries - 1) throw err;
+      const delay = Math.pow(2, i) * 1000;
+      console.log(`[instagram-fetch-insights] Network error, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -87,7 +113,7 @@ serve(async (req) => {
     if (targetAccountId) {
       const { data } = await supabase
         .from('connected_accounts')
-        .select('provider, provider_account_id, access_token')
+        .select('provider, provider_account_id, access_token, account_username')
         .eq('user_id', user.id)
         .eq('id', targetAccountId)
         .maybeSingle();
@@ -96,7 +122,7 @@ serve(async (req) => {
       // Try Instagram first, then Facebook
       const { data: igAccount } = await supabase
         .from('connected_accounts')
-        .select('provider, provider_account_id, access_token')
+        .select('provider, provider_account_id, access_token, account_username')
         .eq('user_id', user.id)
         .eq('provider', 'instagram')
         .limit(1)
@@ -107,7 +133,7 @@ serve(async (req) => {
       } else {
         const { data: fbAccount } = await supabase
           .from('connected_accounts')
-          .select('provider, provider_account_id, access_token')
+          .select('provider, provider_account_id, access_token, account_username')
           .eq('user_id', user.id)
           .eq('provider', 'facebook')
           .limit(1)
@@ -121,6 +147,7 @@ serve(async (req) => {
     const igUserId = account.provider_account_id;
     const accessToken = account.access_token;
     const provider = account.provider;
+    const username = account.account_username || igUserId;
     console.log('[instagram-fetch-insights] Using account:', igUserId, 'provider:', provider);
 
     // ============================================
@@ -144,7 +171,7 @@ serve(async (req) => {
     ].join(',');
 
     const insightsUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${profileMetrics}&period=day&metric_type=total_value&access_token=${accessToken}`;
-    const insightsRes = await fetch(insightsUrl);
+    const insightsRes = await fetchWithRetry(insightsUrl);
     const profileInsights = await insightsRes.json();
 
     if (profileInsights.error) {
@@ -154,12 +181,12 @@ serve(async (req) => {
     }
 
     // ============================================
-    // Step 4: Fetch Demographics
+    // Step 4: Fetch Demographics (with metric_type=total_value)
     // ============================================
     console.log('[instagram-fetch-insights] Fetching demographics...');
     const demoMetrics = 'follower_demographics,engaged_audience_demographics,reached_audience_demographics';
-    const demoUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${demoMetrics}&period=lifetime&access_token=${accessToken}`;
-    const demoRes = await fetch(demoUrl);
+    const demoUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${demoMetrics}&period=lifetime&metric_type=total_value&access_token=${accessToken}`;
+    const demoRes = await fetchWithRetry(demoUrl);
     const demographics = await demoRes.json();
 
     if (demographics.error) {
@@ -175,11 +202,11 @@ serve(async (req) => {
     console.log('[instagram-fetch-insights] Fetching media...');
     const mediaFields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
     let allPosts: any[] = [];
-    let mediaUrl = `https://graph.facebook.com/v24.0/${igUserId}/media?fields=${mediaFields}&limit=50&access_token=${accessToken}`;
+    let mediaUrl: string | null = `https://graph.facebook.com/v24.0/${igUserId}/media?fields=${mediaFields}&limit=50&access_token=${accessToken}`;
     
     // Pagination to get up to 200 posts
     for (let i = 0; i < 4 && mediaUrl; i++) {
-      const mediaRes = await fetch(mediaUrl);
+      const mediaRes = await fetchWithRetry(mediaUrl);
       const mediaJson = await mediaRes.json();
       
       if (mediaJson.error) {
@@ -211,7 +238,7 @@ serve(async (req) => {
         const metrics = isVideo ? videoMetrics : imageMetrics;
         
         const piUrl = `https://graph.facebook.com/v24.0/${post.id}/insights?metric=${metrics}&access_token=${accessToken}`;
-        const piRes = await fetch(piUrl);
+        const piRes = await fetch(piUrl); // Don't retry individual posts to avoid timeout
         const piData = await piRes.json();
 
         if (piData.error) {
@@ -247,7 +274,7 @@ serve(async (req) => {
 
     try {
       const storiesUrl = `https://graph.facebook.com/v24.0/${igUserId}/stories?fields=id,media_type,media_url,thumbnail_url,timestamp,permalink&access_token=${accessToken}`;
-      const storiesRes = await fetch(storiesUrl);
+      const storiesRes = await fetchWithRetry(storiesUrl);
       const storiesJson = await storiesRes.json();
 
       if (!storiesJson.error && storiesJson.data?.length > 0) {
@@ -313,7 +340,7 @@ serve(async (req) => {
     let onlineFollowers = null;
     try {
       const onlineUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=online_followers&period=lifetime&access_token=${accessToken}`;
-      const onlineRes = await fetch(onlineUrl);
+      const onlineRes = await fetchWithRetry(onlineUrl);
       const onlineJson = await onlineRes.json();
       
       if (!onlineJson.error && onlineJson.data?.[0]?.values?.[0]?.value) {
@@ -329,6 +356,7 @@ serve(async (req) => {
     console.log('[instagram-fetch-insights] Saving snapshot...');
     const today = new Date().toISOString().split('T')[0];
     
+    // Build snapshot data matching table schema
     const snapshotData = {
       user_id: user.id,
       instagram_user_id: igUserId,
@@ -336,22 +364,47 @@ serve(async (req) => {
       profile_insights: profileInsights.error ? null : {
         data: profileInsights.data,
         online_followers: onlineFollowers,
+        username: username,
       },
       demographics: demographics.error ? null : demographics,
       posts: postsWithInsights,
-      stories: storiesData,
-      stories_aggregate: storiesAggregate,
-      created_at: new Date().toISOString(),
+      stories: {
+        data: storiesData,
+        aggregate: storiesAggregate,
+      },
+      online_followers: onlineFollowers,
     };
 
-    const { error: snapshotError } = await supabase.from('account_snapshots').upsert(snapshotData, {
-      onConflict: 'user_id,instagram_user_id,date'
-    });
+    // First try to update existing record
+    const { data: existingSnapshot } = await supabase
+      .from('account_snapshots')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('instagram_user_id', igUserId)
+      .eq('date', today)
+      .maybeSingle();
 
-    if (snapshotError) {
-      console.error('[instagram-fetch-insights] Snapshot save error:', snapshotError);
+    if (existingSnapshot) {
+      const { error: updateError } = await supabase
+        .from('account_snapshots')
+        .update(snapshotData)
+        .eq('id', existingSnapshot.id);
+      
+      if (updateError) {
+        console.error('[instagram-fetch-insights] Snapshot update error:', updateError);
+      } else {
+        console.log('[instagram-fetch-insights] Snapshot updated for date:', today);
+      }
     } else {
-      console.log('[instagram-fetch-insights] Snapshot saved for date:', today);
+      const { error: insertError } = await supabase
+        .from('account_snapshots')
+        .insert(snapshotData);
+      
+      if (insertError) {
+        console.error('[instagram-fetch-insights] Snapshot insert error:', insertError);
+      } else {
+        console.log('[instagram-fetch-insights] Snapshot inserted for date:', today);
+      }
     }
 
     const duration = Date.now() - startTime;
@@ -369,6 +422,7 @@ serve(async (req) => {
       snapshot_date: today,
       duration_ms: duration,
       provider: provider,
+      username: username,
       messages: [
         demographics.error ? 'Demographics require 100+ followers and may take up to 48h to appear.' : null,
         storiesData.length === 0 ? 'No active stories in the last 24 hours.' : null,

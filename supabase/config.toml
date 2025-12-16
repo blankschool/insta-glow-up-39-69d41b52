@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.facebook-instagram-insights]
 verify_jwt = true
+
+[functions.export-insights]
+verify_jwt = true

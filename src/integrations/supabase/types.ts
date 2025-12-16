@@ -21,8 +21,10 @@ export type Database = {
           demographics: Json | null
           id: string
           instagram_user_id: string
+          online_followers: Json | null
           posts: Json | null
           profile_insights: Json | null
+          stories: Json | null
           user_id: string
         }
         Insert: {
@@ -31,8 +33,10 @@ export type Database = {
           demographics?: Json | null
           id?: string
           instagram_user_id: string
+          online_followers?: Json | null
           posts?: Json | null
           profile_insights?: Json | null
+          stories?: Json | null
           user_id: string
         }
         Update: {
@@ -41,8 +45,10 @@ export type Database = {
           demographics?: Json | null
           id?: string
           instagram_user_id?: string
+          online_followers?: Json | null
           posts?: Json | null
           profile_insights?: Json | null
+          stories?: Json | null
           user_id?: string
         }
         Relationships: []
