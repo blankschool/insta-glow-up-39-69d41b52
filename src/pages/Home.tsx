@@ -51,7 +51,8 @@ const Home = () => {
   };
 
   const handleOpenDashboard = (accountId: string) => {
-    navigate(`/dashboard/${accountId}`);
+    // Navigate to overview - the account context will handle selection
+    navigate('/overview');
   };
 
   // Empty state

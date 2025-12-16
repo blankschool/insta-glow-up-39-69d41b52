@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AccountProvider } from "@/contexts/AccountContext";
+import { DateRangeProvider } from "@/contexts/DateRangeContext";
 import { InstagramProvider } from "@/contexts/InstagramContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -35,31 +36,33 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <AccountProvider>
-          <InstagramProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/overview" element={<Overview />} />
-                  <Route path="/growth" element={<Growth />} />
-                  <Route path="/performance" element={<Performance />} />
-                  <Route path="/posts" element={<Posts />} />
-                  <Route path="/stories" element={<Stories />} />
-                  <Route path="/demographics" element={<Demographics />} />
-                  <Route path="/online" element={<OnlineFollowers />} />
-                  <Route path="/reels" element={<Reels />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/api-status" element={<ApiStatus />} />
-                  <Route path="/developer" element={<DeveloperMode />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </InstagramProvider>
+          <DateRangeProvider>
+            <InstagramProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/overview" element={<Overview />} />
+                    <Route path="/growth" element={<Growth />} />
+                    <Route path="/performance" element={<Performance />} />
+                    <Route path="/posts" element={<Posts />} />
+                    <Route path="/stories" element={<Stories />} />
+                    <Route path="/demographics" element={<Demographics />} />
+                    <Route path="/online" element={<OnlineFollowers />} />
+                    <Route path="/reels" element={<Reels />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/api-status" element={<ApiStatus />} />
+                    <Route path="/developer" element={<DeveloperMode />} />
+                  </Route>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </InstagramProvider>
+          </DateRangeProvider>
         </AccountProvider>
       </AuthProvider>
     </TooltipProvider>

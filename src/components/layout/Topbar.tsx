@@ -1,25 +1,36 @@
 import { useLocation } from 'react-router-dom';
 import { ExportDropdown } from '@/components/ExportDropdown';
+import { DateRangePicker } from '@/components/DateRangePicker';
+import { useAccount } from '@/contexts/AccountContext';
+import { useDateRange } from '@/contexts/DateRangeContext';
 
 const pageNames: Record<string, string> = {
-  '/': 'Audience',
+  '/': 'Minhas Contas',
   '/posts': 'Posts',
   '/stories': 'Stories',
   '/optimization': 'Optimization',
-  '/profile': 'Profile',
-  '/mentions': 'Mentions',
+  '/profile': 'Perfil',
+  '/mentions': 'Menções',
   '/benchmarks': 'Benchmarks',
-  '/overview': 'Overview',
-  '/growth': 'Growth',
+  '/overview': 'Visão Geral',
+  '/growth': 'Crescimento',
   '/performance': 'Performance',
-  '/demographics': 'Demographics',
-  '/reels': 'Reels & Videos',
-  '/online-followers': 'Online Followers',
+  '/demographics': 'Demografia',
+  '/reels': 'Reels & Vídeos',
+  '/online': 'Seguidores Online',
+  '/api-status': 'Status API',
+  '/developer': 'Desenvolvedor',
 };
 
 export function Topbar() {
   const location = useLocation();
+  const { selectedAccount } = useAccount();
+  const { dateRange, setDateRange } = useDateRange();
   const pageName = pageNames[location.pathname] || 'Dashboard';
+
+  const username = selectedAccount?.account_username 
+    ? `@${selectedAccount.account_username}` 
+    : selectedAccount?.account_name || 'Selecione uma conta';
 
   return (
     <header className="topbar">
@@ -27,24 +38,26 @@ export function Topbar() {
         <div className="flex flex-wrap items-center gap-3">
           {/* Handle */}
           <div className="chip">
-            <div className="h-7 w-7 rounded-full border border-border bg-secondary" />
+            {selectedAccount?.profile_picture_url ? (
+              <img 
+                src={selectedAccount.profile_picture_url} 
+                alt={username}
+                className="h-7 w-7 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <div className="h-7 w-7 rounded-full border border-border bg-secondary" />
+            )}
             <span className="flex flex-col leading-tight">
-              <b className="text-sm font-semibold">@seuperfil</b>
+              <b className="text-sm font-semibold">{username}</b>
               <small className="text-xs text-muted-foreground">{pageName}</small>
             </span>
           </div>
 
-          {/* Date Range */}
-          <div className="chip">
-            <span className="text-muted-foreground">Período</span>
-            <strong className="font-semibold">12 Set 2025 – 12 Dez 2025</strong>
-          </div>
-
-          {/* Aggregation */}
-          <div className="chip">
-            <span className="text-muted-foreground">Unidade</span>
-            <strong className="font-semibold">Mês</strong>
-          </div>
+          {/* Date Range Picker */}
+          <DateRangePicker 
+            date={dateRange} 
+            onDateChange={setDateRange} 
+          />
         </div>
 
         {/* Actions */}

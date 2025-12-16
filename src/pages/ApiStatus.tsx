@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstagram } from '@/contexts/InstagramContext';
+import { useInsights } from '@/hooks/useInsights';
 import { ChartCard } from '@/components/dashboard/ChartCard';
 import { Button } from '@/components/ui/button';
 import { 
@@ -13,7 +14,6 @@ import {
   Key,
   Clock,
   Activity,
-  Code
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,12 +29,109 @@ interface EndpointStatus {
 const ApiStatus = () => {
   const { connectedAccounts } = useAuth();
   const { profile, media, demographics } = useInstagram();
+  const { data: insightsData, fetchInsights, loading: insightsLoading } = useInsights();
   const [refreshing, setRefreshing] = useState(false);
 
   const hasAccount = connectedAccounts.length > 0;
-  const token = sessionStorage.getItem('instagram_access_token');
+  const activeAccount = connectedAccounts[0];
+  // Check if we have insights data as proxy for business account
+  const hasBusinessAccess = insightsData?.profile_insights && Object.keys(insightsData.profile_insights).length > 0;
 
   // Determine endpoint statuses based on actual data
+  const getInsightsStatus = (): EndpointStatus => {
+    if (!hasAccount) {
+      return {
+        name: 'Insights',
+        endpoint: '/me/insights',
+        status: 'error',
+        lastChecked: new Date().toLocaleTimeString(),
+        responseTime: 0,
+        message: 'Nenhuma conta conectada',
+      };
+    }
+    
+    if (insightsData?.profile_insights && Object.keys(insightsData.profile_insights).length > 0) {
+      return {
+        name: 'Insights',
+        endpoint: '/me/insights',
+        status: 'success',
+        lastChecked: new Date().toLocaleTimeString(),
+        responseTime: 320,
+        message: 'Dados disponíveis',
+      };
+    }
+    
+    if (!hasBusinessAccess) {
+      return {
+        name: 'Insights',
+        endpoint: '/me/insights',
+        status: 'warning',
+        lastChecked: new Date().toLocaleTimeString(),
+        responseTime: 520,
+        message: 'Clique em Atualizar para buscar dados',
+      };
+    }
+    
+    return {
+      name: 'Insights',
+      endpoint: '/me/insights',
+      status: 'warning',
+      lastChecked: new Date().toLocaleTimeString(),
+      responseTime: 520,
+      message: 'Clique em Atualizar para buscar dados',
+    };
+  };
+
+  const getDemographicsStatus = (): EndpointStatus => {
+    if (!hasAccount) {
+      return {
+        name: 'Demografia',
+        endpoint: '/me/insights/audience_demographics',
+        status: 'error',
+        lastChecked: new Date().toLocaleTimeString(),
+        responseTime: 0,
+        message: 'Nenhuma conta conectada',
+      };
+    }
+
+    const hasDemographics = insightsData?.demographics && 
+      (insightsData.demographics.age?.length > 0 || 
+       insightsData.demographics.gender?.length > 0 ||
+       insightsData.demographics.city?.length > 0);
+
+    if (hasDemographics) {
+      return {
+        name: 'Demografia',
+        endpoint: '/me/insights/audience_demographics',
+        status: 'success',
+        lastChecked: new Date().toLocaleTimeString(),
+        responseTime: 450,
+        message: 'Dados disponíveis',
+      };
+    }
+
+    const followersCount = profile?.followers_count || 0;
+    if (followersCount > 0 && followersCount < 100) {
+      return {
+        name: 'Demografia',
+        endpoint: '/me/insights/audience_demographics',
+        status: 'warning',
+        lastChecked: new Date().toLocaleTimeString(),
+        responseTime: 450,
+        message: `Requer ≥100 seguidores (atual: ${followersCount})`,
+      };
+    }
+
+    return {
+      name: 'Demografia',
+      endpoint: '/me/insights/audience_demographics',
+      status: 'warning',
+      lastChecked: new Date().toLocaleTimeString(),
+      responseTime: 450,
+      message: 'Clique em Atualizar para buscar dados',
+    };
+  };
+
   const endpoints: EndpointStatus[] = [
     {
       name: 'Autenticação',
@@ -60,30 +157,15 @@ const ApiStatus = () => {
       responseTime: 380,
       message: media.length > 0 ? `${media.length} items` : 'Sem mídia',
     },
-    {
-      name: 'Insights',
-      endpoint: '/me/insights',
-      status: hasAccount ? 'warning' : 'error',
-      lastChecked: new Date().toLocaleTimeString(),
-      responseTime: 520,
-      message: 'Requer permissões business',
-    },
-    {
-      name: 'Demografia',
-      endpoint: '/me/insights/audience_demographics',
-      status: Object.keys(demographics).length > 0 ? 'success' : hasAccount ? 'warning' : 'error',
-      lastChecked: new Date().toLocaleTimeString(),
-      responseTime: 450,
-      message: Object.keys(demographics).length > 0 ? 'Dados disponíveis' : 'Sem dados',
-    },
+    getInsightsStatus(),
+    getDemographicsStatus(),
   ];
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-      toast.success('Status atualizado');
-    }, 1500);
+    await fetchInsights();
+    setRefreshing(false);
+    toast.success('Status atualizado com dados da API');
   };
 
   const StatusIcon = ({ status }: { status: string }) => {
@@ -113,8 +195,8 @@ const ApiStatus = () => {
             Monitoramento dos endpoints e status de conexão.
           </p>
         </div>
-        <Button onClick={handleRefresh} disabled={refreshing} variant="outline" className="gap-2">
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        <Button onClick={handleRefresh} disabled={refreshing || insightsLoading} variant="outline" className="gap-2">
+          <RefreshCw className={`w-4 h-4 ${(refreshing || insightsLoading) ? 'animate-spin' : ''}`} />
           Atualizar
         </Button>
       </section>
@@ -184,7 +266,7 @@ const ApiStatus = () => {
                 <p className="text-sm text-muted-foreground mt-1">{endpoint.message}</p>
               </div>
               <div className="text-right text-sm">
-                {endpoint.responseTime && (
+                {endpoint.responseTime > 0 && (
                   <p className="font-mono">{endpoint.responseTime}ms</p>
                 )}
                 <p className="text-xs text-muted-foreground">{endpoint.lastChecked}</p>
@@ -201,9 +283,9 @@ const ApiStatus = () => {
             <div className="flex items-center gap-3">
               <Key className="w-5 h-5 text-muted-foreground" />
               <div className="flex-1">
-                <p className="text-sm font-medium">Access Token</p>
+                <p className="text-sm font-medium">Conta Conectada</p>
                 <p className="text-xs text-muted-foreground font-mono">
-                  {token ? `${token.slice(0, 20)}...${token.slice(-10)}` : 'Não disponível'}
+                  {activeAccount?.account_username ? `@${activeAccount.account_username}` : 'Não disponível'}
                 </p>
               </div>
             </div>
@@ -212,7 +294,7 @@ const ApiStatus = () => {
               <div className="flex-1">
                 <p className="text-sm font-medium">Provider</p>
                 <p className="text-xs text-muted-foreground">
-                  {connectedAccounts[0]?.provider || 'N/A'}
+                  {activeAccount?.provider || 'N/A'}
                 </p>
               </div>
             </div>
@@ -221,8 +303,8 @@ const ApiStatus = () => {
               <div className="flex-1">
                 <p className="text-sm font-medium">Token Expira</p>
                 <p className="text-xs text-muted-foreground">
-                  {connectedAccounts[0]?.token_expires_at 
-                    ? new Date(connectedAccounts[0].token_expires_at).toLocaleString()
+                  {activeAccount?.token_expires_at 
+                    ? new Date(activeAccount.token_expires_at).toLocaleString()
                     : 'N/A'
                   }
                 </p>
@@ -233,7 +315,7 @@ const ApiStatus = () => {
               <div className="flex-1">
                 <p className="text-sm font-medium">Instagram User ID</p>
                 <p className="text-xs text-muted-foreground font-mono">
-                  {connectedAccounts[0]?.provider_account_id || 'N/A'}
+                  {activeAccount?.provider_account_id || 'N/A'}
                 </p>
               </div>
             </div>
@@ -244,7 +326,7 @@ const ApiStatus = () => {
           <div className="space-y-4 p-2">
             <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
               <span className="text-sm">Instagram Graph API</span>
-              <span className="font-mono text-sm">v18.0</span>
+              <span className="font-mono text-sm">v24.0</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
               <span className="text-sm">Facebook Graph API</span>

@@ -21,6 +21,7 @@ import {
   Play,
   Image,
   Images,
+  ChevronDown,
 } from 'lucide-react';
 import {
   PieChart,
@@ -35,12 +36,15 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+const POSTS_PER_PAGE = 25;
+
 const Posts = () => {
   const { connectedAccounts } = useAuth();
   const { selectedAccount } = useAccount();
   const { loading, error, data, fetchInsights, resetData, selectedAccountId } = useInsights();
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'engagement' | 'likes' | 'comments' | 'saves' | 'reach'>('engagement');
+  const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
 
   const hasAccount = connectedAccounts && connectedAccounts.length > 0;
 
@@ -48,6 +52,7 @@ const Posts = () => {
   useEffect(() => {
     if (hasAccount && selectedAccountId) {
       resetData();
+      setDisplayCount(POSTS_PER_PAGE);
       handleRefresh();
     }
   }, [selectedAccountId]);
@@ -57,6 +62,10 @@ const Posts = () => {
     if (result) {
       setLastUpdated(new Date().toLocaleString('pt-BR'));
     }
+  };
+
+  const handleLoadMore = () => {
+    setDisplayCount(prev => prev + POSTS_PER_PAGE);
   };
 
   const exportCSV = () => {
@@ -147,6 +156,10 @@ const Posts = () => {
     }
   });
 
+  // Paginated posts for display
+  const displayedPosts = sortedPosts.slice(0, displayCount);
+  const hasMorePosts = displayCount < sortedPosts.length;
+
   // Top 10 for chart
   const top10 = sortedPosts.slice(0, 10).map((p: any, idx: number) => ({
     name: `#${idx + 1}`,
@@ -174,7 +187,7 @@ const Posts = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Posts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Análise detalhada de performance: {data?.total_posts || 0} posts analisados.
+            Análise detalhada de performance: {posts.length} posts carregados via API.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -313,7 +326,7 @@ const Posts = () => {
           </div>
 
           {/* Rankings Tabs */}
-          <ChartCard title="Ranking de Posts" subtitle="Ordenados por diferentes métricas">
+          <ChartCard title="Ranking de Posts" subtitle={`Mostrando ${displayedPosts.length} de ${sortedPosts.length} posts`}>
             <Tabs value={sortBy} onValueChange={(v) => setSortBy(v as any)} className="w-full">
               <TabsList className="mb-4">
                 <TabsTrigger value="engagement" className="gap-1">
@@ -351,7 +364,7 @@ const Posts = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedPosts.slice(0, 20).map((post: any, idx: number) => (
+                    {displayedPosts.map((post: any, idx: number) => (
                       <tr key={post.id}>
                         <td className="font-bold text-muted-foreground">{idx + 1}</td>
                         <td>
@@ -392,6 +405,20 @@ const Posts = () => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Load More Button */}
+              {hasMorePosts && (
+                <div className="mt-4 flex justify-center">
+                  <Button 
+                    onClick={handleLoadMore} 
+                    variant="outline" 
+                    className="gap-2"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Carregar mais ({sortedPosts.length - displayCount} restantes)
+                  </Button>
+                </div>
+              )}
             </Tabs>
           </ChartCard>
         </>
