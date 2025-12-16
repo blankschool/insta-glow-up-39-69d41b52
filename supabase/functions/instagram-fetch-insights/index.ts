@@ -419,7 +419,7 @@ serve(async (req) => {
       success: true,
       profile_insights: profileInsights.error ? null : profileInsights,
       demographics: demographics.error ? null : demographics,
-      posts: postsWithInsights.slice(0, 50), // Limit response size
+      posts: postsWithInsights, // Return all posts (up to 200)
       total_posts: postsWithInsights.length,
       stories: storiesData,
       stories_aggregate: storiesAggregate,
