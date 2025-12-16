@@ -181,15 +181,14 @@ serve(async (req) => {
     }
 
     // ============================================
-    // Step 4: Fetch Demographics (with timeframe parameter - REQUIRED for v24.0)
+    // Step 4: Fetch Demographics (v24.0 - requires metric_type=total_value)
+    // Per API documentation: follower_demographics, engaged_audience_demographics
+    // MUST be specified with parameter metric_type=total_value
     // ============================================
     console.log('[instagram-fetch-insights] Fetching demographics...');
     
-    // Demographics in v24.0: use breakdown parameter, NO metric_type
-    // breakdown options: age, gender, country, city
-    // Only use follower_demographics and engaged_audience_demographics (reached requires extra permissions)
     const demoMetrics = 'follower_demographics,engaged_audience_demographics';
-    const demoUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${demoMetrics}&period=lifetime&timeframe=last_30_days&breakdown=age,gender,country,city&access_token=${accessToken}`;
+    const demoUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${demoMetrics}&period=lifetime&metric_type=total_value&breakdown=age,gender,country,city&access_token=${accessToken}`;
     const demoRes = await fetchWithRetry(demoUrl);
     const demographics = await demoRes.json();
 

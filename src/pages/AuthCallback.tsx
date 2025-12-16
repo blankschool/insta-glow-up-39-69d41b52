@@ -76,30 +76,26 @@ export default function AuthCallback() {
       try {
         setStatus('Exchanging code for token...');
         
-        // Use dedicated edge function based on provider
-        const functionName = loginMethod === 'facebook' ? 'facebook-oauth' : 'instagram-oauth';
-        console.log(`[AuthCallback] Calling ${functionName} for provider: ${loginMethod}`);
+        // Always use facebook-oauth edge function
+        console.log('[AuthCallback] Calling facebook-oauth');
         
-        const { data, error: fnError } = await supabase.functions.invoke(functionName, {
-          body: loginMethod === 'facebook' ? { code } : { code, provider: loginMethod }
+        const { data, error: fnError } = await supabase.functions.invoke('facebook-oauth', {
+          body: { code }
         });
 
         if (fnError) {
-          console.error(`[AuthCallback] ${functionName} error:`, fnError);
+          console.error('[AuthCallback] facebook-oauth error:', fnError);
           throw fnError;
         }
 
         if (data?.success) {
           setStatus('Account connected successfully! Redirecting...');
-          // Clear any old sessionStorage tokens
           sessionStorage.removeItem('instagram_access_token');
           sessionStorage.removeItem('instagram_user_id');
           sessionStorage.removeItem('auth_redirect_to');
           
-          // Refresh connected accounts in context
           await refreshConnectedAccounts();
           
-          // Always redirect to /profile after successful connection
           setTimeout(() => navigate('/profile'), 1000);
         } else {
           throw new Error(data?.error || 'Token not received');
