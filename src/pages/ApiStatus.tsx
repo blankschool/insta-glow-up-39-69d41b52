@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useInstagram } from '@/contexts/InstagramContext';
 import { useInsights } from '@/hooks/useInsights';
 import { ChartCard } from '@/components/dashboard/ChartCard';
 import { Button } from '@/components/ui/button';
@@ -28,16 +27,16 @@ interface EndpointStatus {
 
 const ApiStatus = () => {
   const { connectedAccounts } = useAuth();
-  const { profile, media, demographics } = useInstagram();
-  const { data: insightsData, fetchInsights, loading: insightsLoading } = useInsights();
+  const { data: insightsData, unfilteredData, fetchInsights, loading: insightsLoading } = useInsights();
   const [refreshing, setRefreshing] = useState(false);
 
   const hasAccount = connectedAccounts.length > 0;
   const activeAccount = connectedAccounts[0];
-  // Check if we have insights data as proxy for business account
   const hasBusinessAccess = insightsData?.profile_insights && Object.keys(insightsData.profile_insights).length > 0;
 
-  // Determine endpoint statuses based on actual data
+  // Use unfilteredData for total post count
+  const postCount = unfilteredData?.posts?.length || insightsData?.posts?.length || 0;
+
   const getInsightsStatus = (): EndpointStatus => {
     if (!hasAccount) {
       return {
@@ -58,17 +57,6 @@ const ApiStatus = () => {
         lastChecked: new Date().toLocaleTimeString(),
         responseTime: 320,
         message: 'Dados disponíveis',
-      };
-    }
-    
-    if (!hasBusinessAccess) {
-      return {
-        name: 'Insights',
-        endpoint: '/me/insights',
-        status: 'warning',
-        lastChecked: new Date().toLocaleTimeString(),
-        responseTime: 520,
-        message: 'Clique em Atualizar para buscar dados',
       };
     }
     
@@ -110,18 +98,6 @@ const ApiStatus = () => {
       };
     }
 
-    const followersCount = profile?.followers_count || 0;
-    if (followersCount > 0 && followersCount < 100) {
-      return {
-        name: 'Demografia',
-        endpoint: '/me/insights/audience_demographics',
-        status: 'warning',
-        lastChecked: new Date().toLocaleTimeString(),
-        responseTime: 450,
-        message: `Requer ≥100 seguidores (atual: ${followersCount})`,
-      };
-    }
-
     return {
       name: 'Demografia',
       endpoint: '/me/insights/audience_demographics',
@@ -144,18 +120,18 @@ const ApiStatus = () => {
     {
       name: 'Perfil',
       endpoint: '/me',
-      status: profile ? 'success' : hasAccount ? 'warning' : 'error',
+      status: activeAccount ? 'success' : 'error',
       lastChecked: new Date().toLocaleTimeString(),
       responseTime: 245,
-      message: profile ? `@${profile.username || 'conectado'}` : 'Dados não disponíveis',
+      message: activeAccount ? `@${activeAccount.account_username || 'conectado'}` : 'Não conectado',
     },
     {
       name: 'Mídia',
       endpoint: '/me/media',
-      status: media.length > 0 ? 'success' : hasAccount ? 'warning' : 'error',
+      status: postCount > 0 ? 'success' : hasAccount ? 'warning' : 'error',
       lastChecked: new Date().toLocaleTimeString(),
       responseTime: 380,
-      message: media.length > 0 ? `${media.length} items` : 'Sem mídia',
+      message: postCount > 0 ? `${postCount.toLocaleString()} posts carregados` : 'Clique em Atualizar para buscar dados',
     },
     getInsightsStatus(),
     getDemographicsStatus(),
