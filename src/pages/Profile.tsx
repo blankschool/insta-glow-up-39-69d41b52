@@ -6,7 +6,7 @@ import { Instagram, Facebook, User, Loader2, Unlink, RefreshCw } from 'lucide-re
 import { toast } from 'sonner';
 
 const Profile = () => {
-  const { connectedAccounts, connectWithInstagram, connectWithFacebook, disconnectAccount } = useAuth();
+  const { connectedAccounts, connectWithFacebook, disconnectAccount } = useAuth();
   const { profile, loading, refreshData } = useInstagram();
   const [disconnecting, setDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,19 +70,11 @@ const Profile = () => {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Button 
-              onClick={connectWithInstagram}
-              className="gap-2"
-            >
-              <Instagram className="w-4 h-4" />
-              Conectar com Instagram
-            </Button>
-            <Button 
               onClick={connectWithFacebook}
-              variant="outline"
               className="gap-2"
             >
               <Facebook className="w-4 h-4" />
-              Conectar com Facebook
+              Conectar via Facebook
             </Button>
           </div>
         </div>

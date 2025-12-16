@@ -81,7 +81,7 @@ const navGroups: NavGroup[] = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, connectedAccounts, connectWithInstagram, connectWithFacebook, disconnectAccount } = useAuth();
+  const { user, signOut, connectedAccounts, connectWithFacebook, disconnectAccount } = useAuth();
   const { selectedAccount, selectAccount } = useAccount();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     navGroups.reduce((acc, group) => ({ ...acc, [group.title]: group.defaultOpen ?? true }), {})
@@ -210,19 +210,8 @@ export function Sidebar() {
                 ))}
               </div>
               
-              {/* Add Account Options */}
-              <div className="border-t border-border p-2 space-y-1">
-                <button
-                  onClick={() => {
-                    setShowAccountMenu(false);
-                    connectWithInstagram();
-                  }}
-                  className="w-full flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-secondary transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  <Instagram className="h-4 w-4" />
-                  Adicionar Instagram
-                </button>
+              {/* Add Account Option */}
+              <div className="border-t border-border p-2">
                 <button
                   onClick={() => {
                     setShowAccountMenu(false);
@@ -232,7 +221,7 @@ export function Sidebar() {
                 >
                   <Plus className="h-4 w-4" />
                   <Facebook className="h-4 w-4" />
-                  Adicionar via Facebook
+                  Adicionar conta via Facebook
                 </button>
               </div>
             </div>
@@ -281,24 +270,15 @@ export function Sidebar() {
       {/* User section */}
       <div className="mt-auto pt-4 border-t border-border">
         {!hasConnectedAccount && (
-          <div className="mb-3 space-y-2">
+          <div className="mb-3">
             <p className="text-xs text-muted-foreground text-center mb-3">Conecte sua conta</p>
-            <Button 
-              onClick={connectWithInstagram}
-              size="sm"
-              className="w-full gap-2"
-            >
-              <Instagram className="h-4 w-4" />
-              Conectar Instagram
-            </Button>
             <Button 
               onClick={connectWithFacebook}
               size="sm"
-              variant="outline"
               className="w-full gap-2"
             >
               <Facebook className="h-4 w-4" />
-              Conectar Facebook
+              Conectar via Facebook
             </Button>
           </div>
         )}

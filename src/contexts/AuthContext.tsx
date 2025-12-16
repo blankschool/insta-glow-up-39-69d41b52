@@ -18,7 +18,6 @@ interface AuthContextType {
   loading: boolean;
   connectedAccounts: ConnectedAccount[];
   loadingAccounts: boolean;
-  connectWithInstagram: () => Promise<void>;
   connectWithFacebook: () => Promise<void>;
   disconnectAccount: (accountId: string) => Promise<{ error: Error | null }>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
@@ -96,27 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const generateOAuthState = (loginMethod: string, redirectTo: string = '/profile') => {
+  const generateOAuthState = (redirectTo: string = '/profile') => {
     const state = btoa(JSON.stringify({
       nonce: crypto.randomUUID(),
-      login_method: loginMethod,
+      login_method: 'facebook',
       redirect_to: redirectTo,
       timestamp: Date.now(),
     }));
-    // Use sessionStorage instead of localStorage for shorter lifetime
     sessionStorage.setItem('oauth_state', state);
     return state;
-  };
-
-  const connectWithInstagram = async () => {
-    const state = generateOAuthState('instagram', sessionStorage.getItem('auth_redirect_to') || '/profile');
-    
-    // Instagram Direct OAuth with force_reauth=true for multi-account support
-    // Scopes: instagram_business_basic, instagram_business_manage_messages, 
-    // instagram_business_manage_comments, instagram_business_content_publish, instagram_business_manage_insights
-    const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=1728352261135208&redirect_uri=https://insta-glow-up-39.lovable.app/auth/callback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights&state=${encodeURIComponent(state)}`;
-    
-    window.location.href = instagramAuthUrl;
   };
 
   const connectWithFacebook = async () => {
@@ -132,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       'pages_read_engagement'
     ].join(',');
     
-    const state = generateOAuthState('facebook', sessionStorage.getItem('auth_redirect_to') || '/profile');
+    const state = generateOAuthState(sessionStorage.getItem('auth_redirect_to') || '/profile');
     
     const facebookAuthUrl = `https://www.facebook.com/v24.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
     
@@ -208,7 +195,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading, 
       connectedAccounts,
       loadingAccounts,
-      connectWithInstagram, 
       connectWithFacebook,
       disconnectAccount,
       signInWithEmail,

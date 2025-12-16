@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Auth = () => {
-  const { user, loading, connectedAccounts, loadingAccounts, connectWithInstagram, connectWithFacebook, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, loading, connectedAccounts, loadingAccounts, connectWithFacebook, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -86,20 +86,6 @@ const Auth = () => {
     }
   };
 
-  const handleInstagramConnect = async () => {
-    setIsSigningIn(true);
-    try {
-      await connectWithInstagram();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to connect with Instagram.',
-        variant: 'destructive',
-      });
-      setIsSigningIn(false);
-    }
-  };
-
   const handleFacebookConnect = async () => {
     setIsSigningIn(true);
     try {
@@ -145,27 +131,13 @@ const Auth = () => {
           </div>
 
           {needsAccountConnection ? (
-            // Step 2: Connect Instagram or Facebook
+            // Step 2: Connect Facebook (Instagram via Facebook Login)
             <div className="space-y-4">
               <p className="text-center text-sm text-muted-foreground mb-6">
                 Signed in as <span className="font-medium text-foreground">{user.email}</span>
               </p>
               
-              {/* Instagram Button */}
-              <Button
-                onClick={handleInstagramConnect}
-                disabled={isSigningIn}
-                className="w-full gap-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 py-6 text-sm font-semibold text-white transition-all hover:from-purple-700 hover:to-pink-600 hover:shadow-hover"
-              >
-                {isSigningIn ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <Instagram className="h-5 w-5" />
-                )}
-                Connect Instagram
-              </Button>
-
-              {/* Facebook Button */}
+              {/* Facebook Login Button - connects Instagram via Facebook */}
               <Button
                 onClick={handleFacebookConnect}
                 disabled={isSigningIn}
@@ -176,8 +148,12 @@ const Auth = () => {
                 ) : (
                   <Facebook className="h-5 w-5" />
                 )}
-                Connect Facebook
+                Connect with Facebook
               </Button>
+              
+              <p className="text-center text-xs text-muted-foreground">
+                Connect your Instagram Business account through Facebook
+              </p>
             </div>
           ) : (
             // Step 1: Email login/signup only

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Instagram, Facebook, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Facebook, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,31 +16,27 @@ interface ConnectAccountModalProps {
 }
 
 export function ConnectAccountModal({ open, onOpenChange }: ConnectAccountModalProps) {
-  const { connectWithInstagram, connectWithFacebook } = useAuth();
-  const [connecting, setConnecting] = useState<'instagram' | 'facebook' | null>(null);
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'success' | 'error'>('idle');
+  const { connectWithFacebook } = useAuth();
+  const [connecting, setConnecting] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'error'>('idle');
 
-  const handleConnect = async (provider: 'instagram' | 'facebook') => {
-    setConnecting(provider);
+  const handleConnect = async () => {
+    setConnecting(true);
     setStatus('connecting');
     
     try {
-      if (provider === 'instagram') {
-        await connectWithInstagram();
-      } else {
-        await connectWithFacebook();
-      }
+      await connectWithFacebook();
       // Note: The page will redirect, so we won't see the success state here
     } catch (error) {
       setStatus('error');
-      setConnecting(null);
+      setConnecting(false);
     }
   };
 
   const handleClose = () => {
     if (status !== 'connecting') {
       setStatus('idle');
-      setConnecting(null);
+      setConnecting(false);
       onOpenChange(false);
     }
   };
@@ -51,7 +47,7 @@ export function ConnectAccountModal({ open, onOpenChange }: ConnectAccountModalP
         <DialogHeader>
           <DialogTitle>Conectar conta</DialogTitle>
           <DialogDescription>
-            Escolha como você deseja conectar sua conta do Instagram.
+            Conecte sua conta do Instagram via Facebook para acessar as análises.
           </DialogDescription>
         </DialogHeader>
 
@@ -63,36 +59,14 @@ export function ConnectAccountModal({ open, onOpenChange }: ConnectAccountModalP
             </div>
           )}
 
-          {/* Instagram Direct */}
+          {/* Facebook Login - connects Instagram via Facebook */}
           <Button
             variant="outline"
             className="w-full justify-start gap-3 h-auto py-4 px-4"
-            onClick={() => handleConnect('instagram')}
-            disabled={connecting !== null}
+            onClick={handleConnect}
+            disabled={connecting}
           >
-            {connecting === 'instagram' ? (
-              <Loader2 className="w-5 h-5 animate-spin text-pink-500" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <Instagram className="w-5 h-5 text-white" />
-              </div>
-            )}
-            <div className="text-left flex-1">
-              <p className="font-medium">Continuar com Instagram</p>
-              <p className="text-xs text-muted-foreground">
-                Conectar conta Business do Instagram
-              </p>
-            </div>
-          </Button>
-
-          {/* Facebook Login */}
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-3 h-auto py-4 px-4"
-            onClick={() => handleConnect('facebook')}
-            disabled={connecting !== null}
-          >
-            {connecting === 'facebook' ? (
+            {connecting ? (
               <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-[#1877F2] flex items-center justify-center">
@@ -102,7 +76,7 @@ export function ConnectAccountModal({ open, onOpenChange }: ConnectAccountModalP
             <div className="text-left flex-1">
               <p className="font-medium">Continuar com Facebook</p>
               <p className="text-xs text-muted-foreground">
-                Conectar via página do Facebook
+                Conectar conta do Instagram via Facebook
               </p>
             </div>
           </Button>
