@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from "react-router-dom";
 import {
   Home,
   BarChart3,
@@ -14,9 +14,9 @@ import {
   Code,
   Instagram,
   ChevronDown,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 interface NavItem {
   label: string;
@@ -32,37 +32,35 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    title: 'Principal',
+    title: "Principal",
     defaultOpen: true,
     items: [
-      { label: 'Início', href: '/', icon: <Home className="h-[18px] w-[18px]" /> },
-      { label: 'Visão Geral', href: '/overview', icon: <BarChart3 className="h-[18px] w-[18px]" /> },
+      { label: "Início", href: "/", icon: <Home className="h-[18px] w-[18px]" /> },
+      { label: "Visão Geral", href: "/overview", icon: <BarChart3 className="h-[18px] w-[18px]" /> },
     ],
   },
   {
-    title: 'Análises',
+    title: "Análises",
     defaultOpen: true,
     items: [
-      { label: 'Performance', href: '/performance', icon: <Activity className="h-[18px] w-[18px]" /> },
-      { label: 'Posts', href: '/posts', icon: <Grid3X3 className="h-[18px] w-[18px]" /> },
-      { label: 'Stories', href: '/stories', icon: <Layers className="h-[18px] w-[18px]" /> },
-      { label: 'Reels', href: '/reels', icon: <Play className="h-[18px] w-[18px]" /> },
+      { label: "Performance", href: "/performance", icon: <Activity className="h-[18px] w-[18px]" /> },
+      { label: "Posts", href: "/posts", icon: <Grid3X3 className="h-[18px] w-[18px]" /> },
+      { label: "Stories", href: "/stories", icon: <Layers className="h-[18px] w-[18px]" /> },
+      { label: "Reels", href: "/reels", icon: <Play className="h-[18px] w-[18px]" /> },
     ],
   },
   {
-    title: 'Audiência',
+    title: "Audiência",
     defaultOpen: true,
     items: [
-      { label: 'Demografia', href: '/demographics', icon: <Users className="h-[18px] w-[18px]" /> },
-      { label: 'Online', href: '/online', icon: <Clock className="h-[18px] w-[18px]" /> },
+      { label: "Demografia", href: "/demographics", icon: <Users className="h-[18px] w-[18px]" /> },
+      { label: "Online", href: "/online", icon: <Clock className="h-[18px] w-[18px]" /> },
     ],
   },
   {
-    title: 'Configurações',
+    title: "Configurações",
     defaultOpen: false,
-    items: [
-      { label: 'Perfil', href: '/profile', icon: <UserIcon className="h-[18px] w-[18px]" /> },
-    ],
+    items: [{ label: "Perfil", href: "/profile", icon: <UserIcon className="h-[18px] w-[18px]" /> }],
   },
 ];
 
@@ -73,7 +71,7 @@ export function Sidebar() {
   );
 
   const toggleGroup = (title: string) => {
-    setExpandedGroups(prev => ({ ...prev, [title]: !prev[title] }));
+    setExpandedGroups((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
   return (
@@ -97,10 +95,7 @@ export function Sidebar() {
             >
               {group.title}
               <ChevronDown
-                className={cn(
-                  'h-3 w-3 transition-transform',
-                  expandedGroups[group.title] ? '' : '-rotate-90',
-                )}
+                className={cn("h-3 w-3 transition-transform", expandedGroups[group.title] ? "" : "-rotate-90")}
               />
             </button>
             {expandedGroups[group.title] && (
@@ -109,13 +104,13 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     to={item.href}
-                    aria-current={location.pathname === item.href ? 'page' : undefined}
+                    aria-current={location.pathname === item.href ? "page" : undefined}
                     className={cn(
-                      'nav-link',
-                      location.pathname === item.href && 'border-border bg-secondary text-foreground',
+                      "nav-link",
+                      location.pathname === item.href && "border-border bg-secondary text-foreground",
                     )}
                   >
-                    <span className={cn('nav-icon', location.pathname === item.href && 'text-foreground')}>
+                    <span className={cn("nav-icon", location.pathname === item.href && "text-foreground")}>
                       {item.icon}
                     </span>
                     {item.label}
