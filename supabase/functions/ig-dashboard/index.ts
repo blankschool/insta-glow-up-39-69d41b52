@@ -228,9 +228,19 @@ serve(async (req) => {
     );
 
     // Aggregate stories metrics for UI compatibility.
+    type StoryInsightsData = {
+      impressions?: number;
+      reach?: number;
+      replies?: number;
+      exits?: number;
+      taps_forward?: number;
+      taps_back?: number;
+      completion_rate?: number;
+    };
+
     const storiesAggregate = storiesWithInsights.reduce(
       (acc, s) => {
-        const insights = s.insights ?? {};
+        const insights = (s.insights ?? {}) as StoryInsightsData;
         acc.total_stories += 1;
         acc.total_impressions += asNumber(insights.impressions) ?? 0;
         acc.total_reach += asNumber(insights.reach) ?? 0;

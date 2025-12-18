@@ -121,8 +121,8 @@ serve(async (req) => {
     const maxPages = 3; // 3 * 100 = 300 max
 
     for (let i = 0; i < maxPages && nextUrl; i++) {
-      const mediaRes = await fetch(nextUrl);
-      const mediaJson = await mediaRes.json();
+      const mediaRes: Response = await fetch(nextUrl);
+      const mediaJson: { data?: any[]; paging?: { next?: string }; error?: any } = await mediaRes.json();
       if (mediaJson.error) {
         console.error('[facebook-instagram-insights] Media fetch error:', JSON.stringify(mediaJson.error));
         throw new Error(mediaJson.error.message);

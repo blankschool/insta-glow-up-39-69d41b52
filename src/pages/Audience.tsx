@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
 import { Sparkline } from '@/components/dashboard/Sparkline';
-import { useInstagram } from '@/contexts/InstagramContext';
+import { useDashboardData } from '@/hooks/useDashboardData';
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart
@@ -13,7 +13,11 @@ import { Button } from '@/components/ui/button';
 const dayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 const Audience = () => {
-  const { profile, demographics, onlineFollowers, loading, error, refreshData } = useInstagram();
+  const { data, loading, error, refresh } = useDashboardData();
+  
+  const profile = data?.profile;
+  const demographics = (data?.demographics || {}) as Record<string, Record<string, number>>;
+  const onlineFollowers = (data?.online_followers || {}) as Record<string, number>;
 
   // Process gender data from demographics
   const genderData = useMemo(() => {
@@ -30,9 +34,10 @@ const Audience = () => {
     let total = 0;
 
     Object.entries(demographics.audience_gender_age).forEach(([key, value]) => {
-      total += value;
-      if (key.startsWith('F.')) female += value;
-      if (key.startsWith('M.')) male += value;
+      const numValue = value as number;
+      total += numValue;
+      if (key.startsWith('F.')) female += numValue;
+      if (key.startsWith('M.')) male += numValue;
     });
 
     const other = total - female - male;
@@ -73,10 +78,11 @@ const Audience = () => {
     let total = 0;
 
     Object.entries(demographics.audience_gender_age).forEach(([key, value]) => {
-      total += value;
+      const numValue = value as number;
+      total += numValue;
       const ageRange = key.split('.')[1];
       if (ageRange && ageGroups[ageRange] !== undefined) {
-        ageGroups[ageRange] += value;
+        ageGroups[ageRange] += numValue;
       }
     });
 
@@ -116,15 +122,16 @@ const Audience = () => {
       'CL': 'Chile',
     };
 
-    const total = Object.values(demographics.audience_country).reduce((a, b) => a + b, 0);
+    const countryData = demographics.audience_country as Record<string, number>;
+    const total = Object.values(countryData).reduce((a: number, b: number) => a + b, 0);
 
-    return Object.entries(demographics.audience_country)
-      .sort(([, a], [, b]) => b - a)
+    return Object.entries(countryData)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5)
       .map(([code, value]) => ({
         country: countryNames[code] || code,
-        share: Math.round((value / total) * 100),
-        followers: value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toString(),
+        share: Math.round(((value as number) / total) * 100),
+        followers: (value as number) >= 1000 ? `${((value as number) / 1000).toFixed(1)}k` : (value as number).toString(),
       }));
   }, [demographics]);
 
@@ -140,15 +147,16 @@ const Audience = () => {
       ];
     }
 
-    const total = Object.values(demographics.audience_city).reduce((a, b) => a + b, 0);
+    const cityData = demographics.audience_city as Record<string, number>;
+    const total = Object.values(cityData).reduce((a: number, b: number) => a + b, 0);
 
-    return Object.entries(demographics.audience_city)
-      .sort(([, a], [, b]) => b - a)
+    return Object.entries(cityData)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5)
       .map(([city, value]) => ({
         city,
-        share: Math.round((value / total) * 100),
-        followers: value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toString(),
+        share: Math.round(((value as number) / total) * 100),
+        followers: (value as number) >= 1000 ? `${((value as number) / 1000).toFixed(1)}k` : (value as number).toString(),
       }));
   }, [demographics]);
 
@@ -166,13 +174,13 @@ const Audience = () => {
 
     // Group by time slots (3-hour windows)
     const timeSlots = ['09:00', '12:00', '15:00', '18:00', '21:00'];
-    const maxValue = Math.max(...Object.values(onlineFollowers));
+    const maxValue = Math.max(...Object.values(onlineFollowers).map(v => v as number));
 
     return timeSlots.map((time) => {
       const hour = parseInt(time.split(':')[0]);
       const days = Array(7).fill(0).map((_, dayIndex) => {
         // Simulate day variation (actual API doesn't provide per-day data)
-        const hourValue = onlineFollowers[hour.toString()] || 0;
+        const hourValue = (onlineFollowers[hour.toString()] as number) || 0;
         const normalized = Math.ceil((hourValue / maxValue) * 5);
         // Add some variation per day
         const variation = Math.max(1, Math.min(5, normalized + (dayIndex % 2 === 0 ? 0 : -1)));
@@ -216,7 +224,7 @@ const Audience = () => {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4">
         <p className="text-destructive">Erro ao carregar dados: {error}</p>
-        <Button onClick={refreshData} variant="outline" className="gap-2">
+        <Button onClick={() => refresh()} variant="outline" className="gap-2">
           <RefreshCw className="h-4 w-4" />
           Tentar novamente
         </Button>
@@ -235,7 +243,7 @@ const Audience = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button onClick={refreshData} variant="ghost" size="sm" className="gap-2" disabled={loading}>
+          <Button onClick={() => refresh()} variant="ghost" size="sm" className="gap-2" disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
@@ -449,111 +457,106 @@ const Audience = () => {
         </div>
       </section>
 
-      {/* Geography Row */}
-      <section className="grid grid-cols-1 gap-3.5 md:grid-cols-2" style={{ animationDelay: '0.4s' }}>
+      {/* Top Countries */}
+      <section className="grid grid-cols-1 gap-3.5 lg:grid-cols-2" style={{ animationDelay: '0.4s' }}>
         <ChartCard
-          title="Top Countries"
-          subtitle="Países com maior número de seguidores."
-          tooltip="Distribuição de seguidores por país."
-          badge="Top 5"
+          title="Countries"
+          subtitle="Top 5 países por audiência."
+          tooltip="Países com maior concentração de seguidores."
         >
-          <div className="rounded-xl border border-border bg-background">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>País</th>
-                  <th>Share</th>
-                  <th>Followers</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCountries.map((item) => (
-                  <tr key={item.country}>
-                    <td>{item.country}</td>
-                    <td>
-                      <div className="progress-bar">
-                        <span className="progress-bar-fill" style={{ width: `${item.share}%` }} />
-                      </div>
-                    </td>
-                    <td>{item.followers}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2 rounded-xl border border-border bg-background p-4">
+            {topCountries.map((item, idx) => (
+              <div key={item.country} className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50">
+                <span className="w-5 text-xs text-muted-foreground">{idx + 1}</span>
+                <span className="flex-1 text-sm font-medium">{item.country}</span>
+                <span className="text-xs text-muted-foreground">{item.followers}</span>
+                <div className="w-24">
+                  <div className="h-1.5 rounded-full bg-muted">
+                    <div 
+                      className="h-full rounded-full bg-foreground/60" 
+                      style={{ width: `${item.share}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="w-10 text-right text-sm font-semibold">{item.share}%</span>
+              </div>
+            ))}
           </div>
         </ChartCard>
 
         <ChartCard
-          title="Top Cities"
-          subtitle="Cidades com maior número de seguidores."
-          tooltip="Distribuição de seguidores por cidade."
-          badge="Top 5"
+          title="Cities"
+          subtitle="Top 5 cidades por audiência."
+          tooltip="Cidades com maior concentração de seguidores."
         >
-          <div className="rounded-xl border border-border bg-background">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Cidade</th>
-                  <th>Share</th>
-                  <th>Followers</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topCities.map((city) => (
-                  <tr key={city.city}>
-                    <td>{city.city}</td>
-                    <td>
-                      <div className="progress-bar">
-                        <span className="progress-bar-fill" style={{ width: `${city.share}%` }} />
-                      </div>
-                    </td>
-                    <td>{city.followers}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2 rounded-xl border border-border bg-background p-4">
+            {topCities.map((item, idx) => (
+              <div key={item.city} className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/50">
+                <span className="w-5 text-xs text-muted-foreground">{idx + 1}</span>
+                <span className="flex-1 text-sm font-medium">{item.city}</span>
+                <span className="text-xs text-muted-foreground">{item.followers}</span>
+                <div className="w-24">
+                  <div className="h-1.5 rounded-full bg-muted">
+                    <div 
+                      className="h-full rounded-full bg-foreground/60" 
+                      style={{ width: `${item.share}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="w-10 text-right text-sm font-semibold">{item.share}%</span>
+              </div>
+            ))}
           </div>
         </ChartCard>
       </section>
 
-      {/* Heatmap */}
+      {/* Online Followers Heatmap */}
       <section style={{ animationDelay: '0.5s' }}>
         <ChartCard
-          title="Followers Online"
-          subtitle="Heatmap de atividade. Dados ilustrativos."
-          tooltip="Horários e dias com maior atividade dos seguidores. Útil para definir agenda de posts."
-          badge="Local time"
-          legend={
-            <>
-              <span className="text-muted-foreground">Menos</span>
-              {[1, 2, 3, 4, 5].map((v) => (
-                <span key={v} className={`legend-dot heatmap-cell`} data-v={v} style={{ width: 12, height: 12 }} />
-              ))}
-              <span className="text-muted-foreground">Mais</span>
-            </>
-          }
+          title="Online Followers"
+          subtitle="Melhores horários para publicar baseado na atividade dos seguidores."
+          tooltip="Heatmap mostrando quando seus seguidores estão mais ativos. Tons mais escuros = mais ativos."
         >
           <div className="rounded-xl border border-border bg-background p-4">
-            <div className="grid grid-cols-8 gap-2">
-              {/* Header */}
-              <div></div>
+            {/* Day Labels */}
+            <div className="mb-2 flex">
+              <div className="w-14" /> {/* Spacer for time column */}
               {dayLabels.map((day) => (
-                <div key={day} className="text-center text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {day}
+                <div key={day} className="flex-1 text-center text-xs text-muted-foreground">{day}</div>
+              ))}
+            </div>
+            
+            {/* Heatmap Grid */}
+            <div className="space-y-1">
+              {heatmapData.map((row) => (
+                <div key={row.time} className="flex items-center gap-1">
+                  <div className="w-14 text-xs text-muted-foreground">{row.time}</div>
+                  {row.days.map((intensity, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 h-8 rounded transition-colors"
+                      style={{
+                        backgroundColor: `hsl(var(--foreground) / ${intensity * 0.15})`,
+                      }}
+                    />
+                  ))}
                 </div>
               ))}
+            </div>
 
-              {/* Rows */}
-              {heatmapData.map((row) => (
-                <>
-                  <div key={`time-${row.time}`} className="text-xs text-muted-foreground flex items-center">
-                    {row.time}
-                  </div>
-                  {row.days.map((value, i) => (
-                    <div key={`${row.time}-${i}`} className="heatmap-cell" data-v={value} />
-                  ))}
-                </>
-              ))}
+            {/* Legend */}
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <span className="text-xs text-muted-foreground">Menos ativo</span>
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <div
+                    key={level}
+                    className="h-3 w-6 rounded"
+                    style={{ backgroundColor: `hsl(var(--foreground) / ${level * 0.15})` }}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground">Mais ativo</span>
             </div>
           </div>
         </ChartCard>
