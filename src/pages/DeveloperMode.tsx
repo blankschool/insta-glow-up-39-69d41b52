@@ -5,6 +5,12 @@ import { ChartCard } from '@/components/dashboard/ChartCard';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+<<<<<<< HEAD
+=======
+import { supabase } from '@/integrations/supabase/client';
+import { requireSupabaseJwt } from '@/integrations/supabase/jwt';
+import { copyTextToClipboard } from '@/utils/clipboard';
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 import { 
   RefreshCw,
   AlertTriangle,
@@ -29,13 +35,59 @@ interface LogEntry {
   duration?: number;
 }
 
+<<<<<<< HEAD
 const DeveloperMode = () => {
   const { connectedAccounts } = useAuth();
+=======
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
+const getSupabaseFunctionErrorDetails = (error: unknown): string | null => {
+  if (!error || typeof error !== 'object') return null;
+  const maybeContext = (error as { context?: unknown }).context;
+  if (!maybeContext || typeof maybeContext !== 'object') return null;
+
+  const context = maybeContext as { status?: unknown; body?: unknown };
+  const status = typeof context.status === 'number' ? context.status : null;
+
+  const body = context.body;
+  if (body && typeof body === 'object') {
+    const bodyError = (body as { error?: unknown }).error;
+    const requestId = (body as { request_id?: unknown }).request_id;
+    const parts = [
+      typeof bodyError === 'string' ? bodyError : null,
+      typeof requestId === 'string' ? `request_id: ${requestId}` : null,
+      status !== null ? `status: ${status}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' | ') : null;
+  }
+
+  if (typeof body === 'string') {
+    return status !== null ? `status: ${status} | ${body}` : body;
+  }
+
+  return status !== null ? `status: ${status}` : null;
+};
+
+const DeveloperMode = () => {
+  const { connectedAccounts, refreshConnectedAccounts } = useAuth();
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
   const { profile, media, refreshData, loading } = useInstagram();
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [forceRefreshing, setForceRefreshing] = useState(false);
+<<<<<<< HEAD
+=======
+  const [seedingTestAccount, setSeedingTestAccount] = useState(false);
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
   // Add log entry
   const addLog = (type: LogEntry['type'], message: string, endpoint?: string, duration?: number) => {
@@ -97,6 +149,55 @@ const DeveloperMode = () => {
     toast.success('Logs limpos');
   };
 
+<<<<<<< HEAD
+=======
+  const copyJwtToClipboard = async () => {
+    try {
+      const jwt = await requireSupabaseJwt();
+      await copyTextToClipboard(jwt);
+      addLog('success', 'JWT copiado para a área de transferência');
+      toast.success('JWT copiado');
+    } catch (error) {
+      const msg = getErrorMessage(error);
+      const hint =
+        typeof window !== 'undefined' && !window.isSecureContext
+          ? 'Abra em https:// ou http://localhost para permitir cópia.'
+          : 'Confira as permissões do navegador.';
+
+      addLog('error', `Falha ao copiar JWT: ${msg}`);
+      toast.error(`Falha ao copiar JWT. ${hint}`);
+    }
+  };
+
+  const seedTestAccount = async () => {
+    setSeedingTestAccount(true);
+    const startTime = Date.now();
+    addLog('info', 'Executando seed-test-account...', '/seed-test-account');
+
+    try {
+      const jwt = await requireSupabaseJwt();
+      const { data, error } = await supabase.functions.invoke('seed-test-account', {
+        headers: { Authorization: `Bearer ${jwt}` },
+        body: {},
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'seed-test-account failed');
+
+      const duration = Date.now() - startTime;
+      addLog('success', 'seed-test-account concluído', '/seed-test-account', duration);
+      await refreshConnectedAccounts();
+      toast.success('Conta de teste adicionada');
+    } catch (error) {
+      const details = getSupabaseFunctionErrorDetails(error);
+      const msg = details ?? getErrorMessage(error);
+      addLog('error', `Erro no seed-test-account: ${msg}`, '/seed-test-account');
+      toast.error(msg || 'Erro ao adicionar conta de teste');
+    } finally {
+      setSeedingTestAccount(false);
+    }
+  };
+
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
   // Data integrity check
   const integrityChecks = [
     {
@@ -273,6 +374,26 @@ const DeveloperMode = () => {
       {/* Quick Actions */}
       <ChartCard title="Ações Rápidas" subtitle="Operações de debug">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+<<<<<<< HEAD
+=======
+          <Button
+            variant="outline"
+            className="justify-start gap-2"
+            onClick={copyJwtToClipboard}
+          >
+            <Terminal className="w-4 h-4" />
+            Copiar JWT
+          </Button>
+          <Button
+            variant="outline"
+            className="justify-start gap-2"
+            onClick={seedTestAccount}
+            disabled={seedingTestAccount}
+          >
+            <Play className={`w-4 h-4 ${seedingTestAccount ? 'animate-pulse' : ''}`} />
+            Seed Test Account
+          </Button>
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
           <Button variant="outline" className="justify-start gap-2" onClick={() => {
             sessionStorage.removeItem('instagram_access_token');
             addLog('warning', 'Token removido da sessão');
@@ -312,4 +433,8 @@ const DeveloperMode = () => {
   );
 };
 
+<<<<<<< HEAD
 export default DeveloperMode;
+=======
+export default DeveloperMode;
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)

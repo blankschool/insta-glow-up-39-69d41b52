@@ -34,6 +34,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+<<<<<<< HEAD
+=======
+  const devAutoLoginRanRef = React.useRef(false);
+  const devSeedRanRef = React.useRef(false);
+  const devInsightsSecret = import.meta.env.VITE_DEV_INSIGHTS_SECRET as string | undefined;
+  const devIgUserId = import.meta.env.VITE_DEV_IG_USER_ID as string | undefined;
+  const devIgUsername = import.meta.env.VITE_DEV_IG_USERNAME as string | undefined;
+  const isDevNoAuth = import.meta.env.DEV && !!devInsightsSecret;
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
   const fetchConnectedAccounts = async (userId: string) => {
     setLoadingAccounts(true);
@@ -63,6 +72,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+<<<<<<< HEAD
+=======
+    // DEV only: when using the no-auth dev insights endpoint, bypass Supabase auth and
+    // synthesize a connected account for UI routing/selection.
+    if (isDevNoAuth) {
+      setLoading(false);
+      setUser(null);
+      setSession(null);
+      setConnectedAccounts([
+        {
+          id: 'dev',
+          provider: 'facebook',
+          provider_account_id: devIgUserId || 'dev',
+          account_username: devIgUsername || null,
+          account_name: null,
+          profile_picture_url: null,
+          token_expires_at: null,
+        },
+      ]);
+      setLoadingAccounts(false);
+      return;
+    }
+
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -93,7 +126,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
+<<<<<<< HEAD
   }, []);
+=======
+  }, [isDevNoAuth, devIgUserId, devIgUsername]);
+
+  // DEV convenience: auto-login a test user and seed a fixed account (from Supabase secrets).
+  useEffect(() => {
+    const isDev = import.meta.env.DEV;
+    const testEmail = import.meta.env.VITE_DEV_TEST_EMAIL as string | undefined;
+    const testPassword = import.meta.env.VITE_DEV_TEST_PASSWORD as string | undefined;
+    const shouldSeed = (import.meta.env.VITE_DEV_SEED_TEST_ACCOUNT as string | undefined) === 'true';
+
+    if (isDevNoAuth) return;
+    if (!isDev) return;
+    if (devAutoLoginRanRef.current) return;
+    if (!testEmail || !testPassword) return;
+    if (session) return;
+    if (loading) return;
+
+    devAutoLoginRanRef.current = true;
+
+    (async () => {
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: testEmail,
+          password: testPassword,
+        });
+
+        if (error) {
+          console.warn('[dev] auto-login failed:', error.message);
+          return;
+        }
+
+        if (shouldSeed) {
+          const { error: seedError } = await supabase.functions.invoke('seed-test-account', { body: {} });
+          if (seedError) console.warn('[dev] seed-test-account failed:', seedError.message);
+        }
+
+        const { data: { session: freshSession } } = await supabase.auth.getSession();
+        if (freshSession?.user) {
+          await fetchConnectedAccounts(freshSession.user.id);
+        }
+      } catch (e) {
+        console.warn('[dev] auto-login error:', e);
+      }
+    })();
+  }, [loading, session]);
+
+  // DEV convenience: if user is already logged-in (session restored) but no connected account exists yet,
+  // seed the fixed test account once to bypass the Facebook connect step.
+  useEffect(() => {
+    const isDev = import.meta.env.DEV;
+    const shouldSeed = (import.meta.env.VITE_DEV_SEED_TEST_ACCOUNT as string | undefined) === 'true';
+    if (isDevNoAuth) return;
+    if (!isDev || !shouldSeed) return;
+    if (devSeedRanRef.current) return;
+    if (loading || loadingAccounts) return;
+    if (!user || !session) return;
+    if (connectedAccounts.length > 0) return;
+
+    devSeedRanRef.current = true;
+    (async () => {
+      try {
+        const { error: seedError } = await supabase.functions.invoke('seed-test-account', { body: {} });
+        if (seedError) {
+          console.warn('[dev] seed-test-account failed:', seedError.message);
+          return;
+        }
+        await fetchConnectedAccounts(user.id);
+      } catch (e) {
+        console.warn('[dev] seed-test-account error:', e);
+      }
+    })();
+  }, [user, session, loading, loadingAccounts, connectedAccounts.length]);
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
   const generateOAuthState = (redirectTo: string = '/profile') => {
     const state = btoa(JSON.stringify({

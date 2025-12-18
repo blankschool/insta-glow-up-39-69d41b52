@@ -71,3 +71,35 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+<<<<<<< HEAD
+=======
+
+## Supabase Edge Functions (backend)
+
+Backend lives in `supabase/functions/`.
+
+### Dev/Test: fixed Instagram account (no OAuth)
+
+For debugging with a single fixed Instagram Business account/token, you can seed `connected_accounts` for the logged-in user via the `seed-test-account` Edge Function.
+
+- Set function secrets (Supabase CLI): `supabase secrets set TEST_IG_USER_ID=... TEST_IG_ACCESS_TOKEN=... TEST_IG_USERNAME=...`
+- Invoke while logged in: `supabase.functions.invoke('seed-test-account')`
+
+### Dev/Test: auto-login (local)
+
+For local development, you can auto-login a test user (email/password) and optionally auto-seed the fixed account on startup.
+
+1) Create a test user (terminal; requires email confirmations disabled in Supabase Auth settings):
+
+`curl -sS -X POST "$VITE_SUPABASE_URL/auth/v1/signup" -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Content-Type: application/json" -d '{"email":"test@example.com","password":"strong-password"}'`
+
+2) Create `./.env.local` (do NOT commit):
+
+`VITE_DEV_TEST_EMAIL=test@example.com`
+
+`VITE_DEV_TEST_PASSWORD=strong-password`
+
+`VITE_DEV_SEED_TEST_ACCOUNT=true`
+
+3) Run the app: `npm run dev`
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)

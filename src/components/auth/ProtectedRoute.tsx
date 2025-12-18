@@ -8,6 +8,11 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading, connectedAccounts, loadingAccounts } = useAuth();
   const location = useLocation();
+<<<<<<< HEAD
+=======
+  const devInsightsSecret = import.meta.env.VITE_DEV_INSIGHTS_SECRET as string | undefined;
+  const isDevNoAuth = import.meta.env.DEV && !!devInsightsSecret;
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
   // Still loading auth state
   if (loading || loadingAccounts) {
@@ -18,6 +23,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
+<<<<<<< HEAD
+=======
+  // DEV only: allow access without Supabase auth when using the dev insights endpoint.
+  if (isDevNoAuth) {
+    return <>{children}</>;
+  }
+
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
   // No user session - redirect to login
   if (!user) {
     // Store the intended destination in sessionStorage (more secure than localStorage)

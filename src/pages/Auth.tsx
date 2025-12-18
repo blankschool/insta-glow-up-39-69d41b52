@@ -7,14 +7,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+<<<<<<< HEAD
 
 const Auth = () => {
   const { user, loading, connectedAccounts, loadingAccounts, connectWithFacebook, signInWithEmail, signUpWithEmail } = useAuth();
+=======
+import { supabase } from '@/integrations/supabase/client';
+
+const Auth = () => {
+  const { user, loading, connectedAccounts, loadingAccounts, connectWithFacebook, signInWithEmail, signUpWithEmail, refreshConnectedAccounts } = useAuth();
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
+<<<<<<< HEAD
+=======
+  const [isSeedingDev, setIsSeedingDev] = useState(false);
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
   
   // Email form state
   const [email, setEmail] = useState('');
@@ -110,6 +121,33 @@ const Auth = () => {
 
   // User is logged in but needs to connect an account (Step 2)
   const needsAccountConnection = user && connectedAccounts.length === 0;
+<<<<<<< HEAD
+=======
+  const shouldShowDevSeed = import.meta.env.DEV && (import.meta.env.VITE_DEV_SEED_TEST_ACCOUNT as string | undefined) === 'true';
+
+  const handleDevSeed = async () => {
+    setIsSeedingDev(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('seed-test-account', { body: {} });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Seed failed');
+
+      await refreshConnectedAccounts();
+      toast({
+        title: 'Conta de teste conectada',
+        description: 'Seed executado com sucesso. Recarregue ou aguarde o redirecionamento.',
+      });
+    } catch (e: any) {
+      toast({
+        title: 'Seed falhou',
+        description: e?.message || 'Não foi possível criar a conta de teste.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSeedingDev(false);
+    }
+  };
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background-secondary">
@@ -136,6 +174,26 @@ const Auth = () => {
               <p className="text-center text-sm text-muted-foreground mb-6">
                 Signed in as <span className="font-medium text-foreground">{user.email}</span>
               </p>
+<<<<<<< HEAD
+=======
+
+              {shouldShowDevSeed && (
+                <div className="rounded-xl border border-border bg-background p-4">
+                  <p className="text-sm font-medium">Modo DEV</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Se você já configurou `TEST_IG_USER_ID/TEST_IG_ACCESS_TOKEN` nos secrets do Supabase, use isso para pular o OAuth.
+                  </p>
+                  <Button
+                    onClick={handleDevSeed}
+                    disabled={isSeedingDev}
+                    variant="outline"
+                    className="mt-3 w-full"
+                  >
+                    {isSeedingDev ? 'Conectando...' : 'Conectar conta de teste'}
+                  </Button>
+                </div>
+              )}
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
               
               {/* Facebook Login Button - connects Instagram via Facebook */}
               <Button

@@ -24,14 +24,34 @@ export interface InsightsData {
   snapshot_date: string;
   messages: string[];
   provider: string;
+<<<<<<< HEAD
 }
 
+=======
+  cached?: boolean;
+  cached_created_at?: string | null;
+  request_id?: string;
+}
+
+type FetchInsightsOptions = {
+  forceRefresh?: boolean;
+  date?: string; // YYYY-MM-DD
+  maxPosts?: number;
+  cacheTtlMinutes?: number;
+  preferCache?: boolean;
+};
+
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 export function useInsights() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawData, setRawData] = useState<InsightsData | null>(null);
   const { selectedAccountId } = useAccount();
   const { dateRange } = useDateRange();
+<<<<<<< HEAD
+=======
+  const devInsightsSecret = import.meta.env.VITE_DEV_INSIGHTS_SECRET as string | undefined;
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
   // Filter posts by date range
   const data = useMemo(() => {
@@ -94,7 +114,11 @@ export function useInsights() {
     };
   }, [rawData, dateRange]);
 
+<<<<<<< HEAD
   const fetchInsights = useCallback(async (accountId?: string) => {
+=======
+  const fetchInsights = useCallback(async (accountId?: string, options: FetchInsightsOptions = {}) => {
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
     setLoading(true);
     setError(null);
     
@@ -102,20 +126,47 @@ export function useInsights() {
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
+<<<<<<< HEAD
       if (!session) {
         throw new Error('Not authenticated');
       }
 
       const { data: result, error: fnError } = await supabase.functions.invoke('instagram-fetch-insights', {
         body: targetAccountId ? { accountId: targetAccountId } : {},
+=======
+      const isDevNoAuth = import.meta.env.DEV && !!devInsightsSecret;
+      if (!session && !isDevNoAuth) throw new Error('Not authenticated');
+
+      const functionName = isDevNoAuth ? 'instagram-fetch-insights-dev' : 'instagram-fetch-insights';
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      if (isDevNoAuth && devInsightsSecret) headers['x-dev-secret'] = devInsightsSecret;
+
+      const { data: result, error: fnError } = await supabase.functions.invoke(functionName, {
+        headers,
+        body: {
+          ...(targetAccountId ? { accountId: targetAccountId } : {}),
+          ...(options.forceRefresh ? { forceRefresh: true } : {}),
+          ...(options.date ? { date: options.date } : {}),
+          ...(options.maxPosts ? { maxPosts: options.maxPosts } : {}),
+          ...(options.cacheTtlMinutes !== undefined ? { cacheTtlMinutes: options.cacheTtlMinutes } : {}),
+          ...(options.preferCache !== undefined ? { preferCache: options.preferCache } : {}),
+        },
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
       });
 
       if (fnError) {
         throw new Error(fnError.message);
       }
 
+<<<<<<< HEAD
       if (result.error) {
         throw new Error(result.error);
+=======
+      if (result?.error) {
+        const reqId = result?.request_id ? ` (request_id: ${result.request_id})` : '';
+        throw new Error(`${result.error}${reqId}`);
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
       }
 
       setRawData(result);

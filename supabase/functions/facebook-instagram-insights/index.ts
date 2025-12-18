@@ -64,9 +64,16 @@ serve(async (req) => {
 
     // Step 3: Profile Insights (maximum metrics available)
     console.log('[facebook-instagram-insights] Fetching profile insights...');
+<<<<<<< HEAD
     const profileMetrics = [
       'reach',
       'impressions',
+=======
+    // v24.0: use "views" instead of deprecated "impressions"; profile_views/website_clicks removed
+    const profileMetrics = [
+      'reach',
+      'views',
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
       'accounts_engaged',
       'total_interactions',
       'likes',
@@ -76,8 +83,12 @@ serve(async (req) => {
       'replies',
       'profile_links_taps',
       'follows_and_unfollows',
+<<<<<<< HEAD
       'profile_views',
       'website_clicks'
+=======
+      'follower_count',
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
     ].join(',');
 
     const insightsUrl = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=${profileMetrics}&period=day&metric_type=total_value&access_token=${accessToken}`;
@@ -113,6 +124,7 @@ serve(async (req) => {
       console.error('[facebook-instagram-insights] Online followers error:', JSON.stringify(onlineFollowers.error));
     }
 
+<<<<<<< HEAD
     // Step 6: Fetch recent media (up to 50 posts)
     console.log('[facebook-instagram-insights] Fetching media...');
     const mediaUrl = `https://graph.facebook.com/v24.0/${igUserId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,media_product_type&limit=50&access_token=${accessToken}`;
@@ -125,18 +137,46 @@ serve(async (req) => {
     }
 
     const posts = mediaJson.data || [];
+=======
+    // Step 6: Fetch recent media (paginate to reach 150+)
+    console.log('[facebook-instagram-insights] Fetching media...');
+    const mediaFields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,media_product_type';
+    let posts: any[] = [];
+    let nextUrl: string | null = `https://graph.facebook.com/v24.0/${igUserId}/media?fields=${mediaFields}&limit=100&access_token=${accessToken}`;
+    const maxPages = 3; // 3 * 100 = 300 max
+
+    for (let i = 0; i < maxPages && nextUrl; i++) {
+      const mediaRes = await fetch(nextUrl);
+      const mediaJson = await mediaRes.json();
+      if (mediaJson.error) {
+        console.error('[facebook-instagram-insights] Media fetch error:', JSON.stringify(mediaJson.error));
+        throw new Error(mediaJson.error.message);
+      }
+      posts = [...posts, ...(mediaJson.data || [])];
+      nextUrl = mediaJson.paging?.next || null;
+    }
+
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
     console.log('[facebook-instagram-insights] Posts fetched:', posts.length);
 
     // Step 7: Fetch insights for each post (parallel)
     console.log('[facebook-instagram-insights] Fetching post insights...');
+<<<<<<< HEAD
     const postMetrics = 'reach,impressions,engagement,saved,shares,video_views,plays';
+=======
+    const postMetrics = 'reach,views,total_interactions,saved,shares,plays';
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
 
     const postsWithInsights = await Promise.all(posts.map(async (post: any) => {
       try {
         // Different metrics for different media types
         let metricsToFetch = postMetrics;
         if (post.media_type === 'VIDEO' || post.media_product_type === 'REELS') {
+<<<<<<< HEAD
           metricsToFetch = 'reach,impressions,engagement,saved,shares,video_views,plays,total_interactions';
+=======
+          metricsToFetch = 'reach,views,saved,shares,plays,total_interactions';
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
         }
 
         const piUrl = `https://graph.facebook.com/v24.0/${post.id}/insights?metric=${metricsToFetch}&access_token=${accessToken}`;
@@ -207,7 +247,11 @@ serve(async (req) => {
       profile_insights: profileInsights.error ? null : profileInsights,
       demographics: demographics.error ? null : demographics,
       online_followers: onlineFollowers.error ? null : onlineFollowers,
+<<<<<<< HEAD
       posts: postsWithInsights.slice(0, 25), // Limit response size
+=======
+      posts: postsWithInsights.slice(0, 150),
+>>>>>>> 6f17527 (Fix insights pagination/cache; add dev seeding and CORS)
       stories: stories.slice(0, 10),
       total_posts: postsWithInsights.length,
       total_stories: stories.length,
