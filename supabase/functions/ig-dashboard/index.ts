@@ -144,12 +144,25 @@ async function graphGetWithUrl(fullUrl: string): Promise<unknown> {
 }
 
 async function fetchMediaInsights(accessToken: string, mediaId: string, mediaType: string): Promise<Record<string, number>> {
-  // Different metrics available per media type
-  let metrics = "impressions,reach,saved";
-  if (mediaType === "VIDEO" || mediaType === "REELS") {
-    metrics = "impressions,reach,saved,plays,video_views";
-  } else if (mediaType === "CAROUSEL_ALBUM") {
-    metrics = "impressions,reach,saved";
+  // Different metrics available per media type - updated for Graph API v24.0
+  // Note: shares is NOT available for individual posts, only for REELS
+  // CAROUSEL_ALBUM posts have NO individual insights available via API
+  
+  if (mediaType === "CAROUSEL_ALBUM") {
+    // Carousels don't have individual insights in API - return empty
+    return {};
+  }
+  
+  let metrics: string;
+  if (mediaType === "REELS") {
+    // REELS-specific metrics
+    metrics = "plays,reach,saved,shares,total_interactions";
+  } else if (mediaType === "VIDEO") {
+    // VIDEO metrics
+    metrics = "reach,saved,video_views";
+  } else {
+    // IMAGE metrics
+    metrics = "reach,saved";
   }
   
   try {
@@ -164,7 +177,8 @@ async function fetchMediaInsights(accessToken: string, mediaId: string, mediaTyp
       if (typeof name === "string" && typeof lastValue === "number") out[name] = lastValue;
     }
     return out;
-  } catch {
+  } catch (err) {
+    // Insights may not be available for older posts (>2 years) or certain media types
     return {};
   }
 }
