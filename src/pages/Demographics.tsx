@@ -5,7 +5,8 @@ import {
   MapPin,
   Globe,
   User,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import {
   BarChart,
@@ -21,7 +22,7 @@ import {
 } from 'recharts';
 
 const Demographics = () => {
-  const { data, loading } = useDashboardData();
+  const { data, loading, error } = useDashboardData();
   const demographics = (data?.demographics as any) ?? {};
 
   const hasDemographics =
@@ -106,11 +107,21 @@ const Demographics = () => {
 
       {/* Age Distribution */}
       {!hasDemographics ? (
-        <ChartCard title="Demografia" subtitle="Dados indisponíveis">
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            Sem dados demográficos disponíveis para este perfil/período.
-          </div>
-        </ChartCard>
+        <div className="chart-card p-6 flex flex-col items-center justify-center min-h-[300px]">
+          <AlertCircle className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Dados demográficos indisponíveis</h3>
+          <p className="text-sm text-muted-foreground text-center max-w-lg">
+            A API do Instagram não retornou dados demográficos. Isso pode ocorrer por:
+          </p>
+          <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside text-left">
+            <li>Conta com menos de 100 seguidores</li>
+            <li>Dados ainda em processamento pelo Instagram</li>
+            <li>Erro temporário na API do Instagram</li>
+          </ul>
+          {error && (
+            <p className="text-sm text-destructive mt-4">{error}</p>
+          )}
+        </div>
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
