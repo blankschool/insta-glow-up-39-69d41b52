@@ -12,7 +12,6 @@ import NotFound from "./pages/NotFound";
 
 // Dashboard Pages
 import Overview from "./pages/Overview";
-import Growth from "./pages/Growth";
 import Performance from "./pages/Performance";
 import Posts from "./pages/Posts";
 import Stories from "./pages/Stories";
@@ -34,7 +33,6 @@ const App = () => (
             <Route element={<DashboardLayout />}>
               <Route path="/" element={<Home />} />
               <Route path="/overview" element={<Overview />} />
-              <Route path="/growth" element={<Growth />} />
               <Route path="/performance" element={<Performance />} />
               <Route path="/posts" element={<Posts />} />
               <Route path="/stories" element={<Stories />} />

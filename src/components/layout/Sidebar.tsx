@@ -43,7 +43,6 @@ const navGroups: NavGroup[] = [
     title: 'Análises',
     defaultOpen: true,
     items: [
-      { label: 'Crescimento', href: '/growth', icon: <TrendingUp className="h-[18px] w-[18px]" /> },
       { label: 'Performance', href: '/performance', icon: <Activity className="h-[18px] w-[18px]" /> },
       { label: 'Posts', href: '/posts', icon: <Grid3X3 className="h-[18px] w-[18px]" /> },
       { label: 'Stories', href: '/stories', icon: <Layers className="h-[18px] w-[18px]" /> },
