@@ -157,7 +157,7 @@ const Posts = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Posts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Análise detalhada de performance: {posts.length.toLocaleString()} posts carregados.
+            Análise de {posts.length.toLocaleString()} posts. Salvos/Alcance disponíveis apenas para posts recentes (não carrosséis).
           </p>
         </div>
         <div className="flex items-center gap-3">
