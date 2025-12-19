@@ -165,22 +165,21 @@ function parseInsightsResponse(json: unknown): Record<string, number> {
   return out;
 }
 
+// ✅ CORRIGIDO: Normalização para API v24
 function normalizeMediaInsights(raw: Record<string, number>): Record<string, number> {
-  // Normalize metric name changes across Graph API versions.
-  // - "saved" vs "saves"
-  // - "plays" / "video_views" / "impressions" -> "views" (canonical field for display)
-  // Keep canonical keys used by the frontend: views, reach, saved, shares, total_interactions, engagement.
-  const saved = raw.saved ?? raw.saves;
-  const views = raw.views ?? raw.video_views ?? raw.plays ?? raw.impressions;
-  const reach = raw.reach;
-  const shares = raw.shares;
-  const total_interactions =
-    raw.total_interactions ??
-    // Some API versions expose "engagement" at media-level; treat it as interactions when present.
-    raw.engagement;
+  // API v24 (abril 2025): "views" é a métrica canônica
+  // - impressions, plays, video_views foram depreciados
+  // - views é agora a métrica principal para todos os tipos de conteúdo
 
-  // Provide both aliases so older/newer frontends keep working.
-  // Frontend uses "saved" today, but we also include "saves" for convenience.
+  const saved = raw.saved ?? raw.saves;
+  const shares = raw.shares;
+  const reach = raw.reach;
+
+  // views é a métrica principal - usar diretamente sem fallback para métricas depreciadas
+  const views = raw.views;
+
+  const total_interactions = raw.total_interactions ?? raw.engagement;
+
   return {
     ...raw,
     ...(typeof views === "number" ? { views } : {}),
@@ -191,6 +190,7 @@ function normalizeMediaInsights(raw: Record<string, number>): Record<string, num
   };
 }
 
+// ✅ CORRIGIDO: Métricas atualizadas para API v24
 async function fetchMediaInsights(
   accessToken: string,
   mediaId: string,
@@ -199,49 +199,56 @@ async function fetchMediaInsights(
 ): Promise<Record<string, number>> {
   const isReel = mediaProductType === "REELS" || mediaProductType === "REEL";
   const isCarousel = mediaType === "CAROUSEL_ALBUM";
+  const isVideo = mediaType === "VIDEO";
 
   const candidates: string[] = [];
 
   if (isCarousel) {
-    // Use only metrics that are widely supported by the API for media insights.
+    // Carousels: views conta cada imagem separadamente na API v24
     candidates.push(
-      "impressions,reach,saved,shares,total_interactions",
-      "impressions,reach,saved,total_interactions",
+      "views,reach,saved,shares,total_interactions",
+      "views,reach,saved,total_interactions",
+      "views,reach,saved,shares",
+      "views,reach,saved",
       "reach,saved,total_interactions",
+      "reach,saved,shares",
       "reach,saved",
-      "impressions,reach",
       "reach",
     );
   } else if (isReel) {
-    // reels: "plays" may be supported depending on API/account; keep fallbacks.
+    // Reels: views substitui plays na API v24
     candidates.push(
-      "plays,reach,saved,shares,total_interactions",
-      "impressions,reach,saved,shares,total_interactions",
-      "plays,reach,saved",
-      "impressions,reach,saved",
+      "views,reach,saved,shares,total_interactions",
+      "views,reach,saved,shares",
+      "views,reach,saved,total_interactions",
+      "views,reach,saved",
+      "views,reach",
+      "reach,saved,shares",
       "reach,saved",
-      "impressions,reach",
       "reach",
     );
-  } else if (mediaType === "VIDEO") {
-    // vídeo feed: "video_views" is the common metric; use impressions as a fallback.
+  } else if (isVideo) {
+    // Vídeos no feed: views substitui video_views na API v24
     candidates.push(
-      "video_views,reach,saved,shares,total_interactions",
-      "video_views,reach,saved,total_interactions",
-      "impressions,reach,saved,shares,total_interactions",
-      "video_views,reach,saved",
-      "impressions,reach,saved",
+      "views,reach,saved,shares,total_interactions",
+      "views,reach,saved,total_interactions",
+      "views,reach,saved,shares",
+      "views,reach,saved",
+      "views,reach",
+      "reach,saved,shares",
       "reach,saved",
-      "impressions,reach",
       "reach",
     );
   } else {
-    // imagem (no video views; use impressions as an exposure proxy)
+    // Imagens: views agora disponível para imagens na API v24
     candidates.push(
-      "impressions,reach,saved,total_interactions",
-      "impressions,reach,saved",
+      "views,reach,saved,shares,total_interactions",
+      "views,reach,saved,total_interactions",
+      "views,reach,saved,shares",
+      "views,reach,saved",
+      "views,reach",
+      "reach,saved,shares",
       "reach,saved",
-      "impressions,reach",
       "reach",
     );
   }
@@ -251,7 +258,14 @@ async function fetchMediaInsights(
       const json = await graphGet(`/${mediaId}/insights`, accessToken, { metric });
       const raw = parseInsightsResponse(json);
       const normalized = normalizeMediaInsights(raw);
-      if (Object.keys(normalized).length > 0) return normalized;
+
+      // Log de sucesso para debug
+      if (Object.keys(normalized).length > 0) {
+        console.log(
+          `[ig-dashboard] Insights SUCCESS media=${mediaId} metric=${metric} keys=${Object.keys(normalized).join(",")}`,
+        );
+        return normalized;
+      }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.log(`[ig-dashboard] Insights attempt failed media=${mediaId} metric=${metric}: ${errMsg.slice(0, 180)}`);
@@ -259,6 +273,7 @@ async function fetchMediaInsights(
     }
   }
 
+  console.log(`[ig-dashboard] Insights EMPTY for media=${mediaId} type=${mediaType} product=${mediaProductType}`);
   return {};
 }
 
@@ -305,13 +320,13 @@ function computeMediaMetrics(
 
   const savesPick = pickMetric(insightsRaw, ["saved", "saves"]);
   const reachPick = pickMetric(insightsRaw, ["reach"]);
-  const viewsPick = pickMetric(insightsRaw, ["views", "plays", "video_views", "impressions"]);
+  // ✅ CORRIGIDO: views é a métrica principal, sem fallback para métricas depreciadas
+  const viewsPick = pickMetric(insightsRaw, ["views"]);
   const sharesPick = pickMetric(insightsRaw, ["shares"]);
   const totalInteractionsPick = pickMetric(insightsRaw, ["total_interactions", "engagement"]);
 
   const saves = savesPick.value;
   const reach = reachPick.value;
-  // views and reach are distinct metrics - don't use reach as fallback for views
   const views = viewsPick.value;
   const shares = sharesPick.value;
 
@@ -325,10 +340,8 @@ function computeMediaMetrics(
   const viewsRate = typeof reach === "number" && reach > 0 && typeof views === "number" ? (views / reach) * 100 : null;
   const interactionsPer1000Reach = typeof reach === "number" && reach > 0 ? (engagement / reach) * 1000 : null;
 
-  const expectsViews =
-    media.media_product_type === "REELS" ||
-    media.media_product_type === "REEL" ||
-    media.media_type === "VIDEO";
+  // Todos os tipos de mídia agora suportam views na API v24
+  const expectsViews = true;
 
   const missingMetrics = ["saves", "shares", "reach", ...(expectsViews ? ["views"] : [])].filter((k) => {
     if (k === "saves") return saves === null;
@@ -348,7 +361,8 @@ function computeMediaMetrics(
   }
   if (typeof views === "number") normalizedInsights.views = views;
   if (typeof shares === "number") normalizedInsights.shares = shares;
-  if (typeof totalInteractionsPick.value === "number") normalizedInsights.total_interactions = totalInteractionsPick.value;
+  if (typeof totalInteractionsPick.value === "number")
+    normalizedInsights.total_interactions = totalInteractionsPick.value;
 
   const computed: ComputedMetrics = {
     likes,
@@ -375,13 +389,27 @@ function computeMediaMetrics(
 
 async function fetchStoryInsights(accessToken: string, storyId: string): Promise<Record<string, number>> {
   try {
+    // ✅ Stories também usam views na API v24
     const json = await graphGet(`/${storyId}/insights`, accessToken, {
-      metric: "impressions,reach,replies,exits,taps_forward,taps_back",
+      metric: "views,reach,replies,exits,taps_forward,taps_back",
     });
     const raw = parseInsightsResponse(json);
     return raw;
   } catch {
-    return {};
+    // Fallback para métricas antigas caso a conta ainda não tenha migrado
+    try {
+      const json = await graphGet(`/${storyId}/insights`, accessToken, {
+        metric: "impressions,reach,replies,exits,taps_forward,taps_back",
+      });
+      const raw = parseInsightsResponse(json);
+      // Normalizar impressions para views
+      if (raw.impressions && !raw.views) {
+        raw.views = raw.impressions;
+      }
+      return raw;
+    } catch {
+      return {};
+    }
   }
 }
 
@@ -484,14 +512,16 @@ serve(async (req) => {
     const storiesWithInsights = await Promise.all(
       storyItems.map(async (s) => {
         const insights = await fetchStoryInsights(accessToken, s.id);
-        const impressions = insights.impressions ?? 0;
+        // ✅ CORRIGIDO: usar views em vez de impressions
+        const views = insights.views ?? insights.impressions ?? 0;
         const exits = insights.exits ?? 0;
-        const completionRate = impressions > 0 ? Math.round((1 - exits / impressions) * 100) : 0;
-        return { ...s, insights: { ...insights, completion_rate: completionRate } };
+        const completionRate = views > 0 ? Math.round((1 - exits / views) * 100) : 0;
+        return { ...s, insights: { ...insights, views, completion_rate: completionRate } };
       }),
     );
 
     type StoryInsightsData = {
+      views?: number;
       impressions?: number;
       reach?: number;
       replies?: number;
@@ -505,7 +535,8 @@ serve(async (req) => {
       (acc, s) => {
         const insights = (s.insights ?? {}) as StoryInsightsData;
         acc.total_stories += 1;
-        acc.total_impressions += asNumber(insights.impressions) ?? 0;
+        // ✅ CORRIGIDO: usar views como métrica principal
+        acc.total_views += asNumber(insights.views) ?? asNumber(insights.impressions) ?? 0;
         acc.total_reach += asNumber(insights.reach) ?? 0;
         acc.total_replies += asNumber(insights.replies) ?? 0;
         acc.total_exits += asNumber(insights.exits) ?? 0;
@@ -515,7 +546,8 @@ serve(async (req) => {
       },
       {
         total_stories: 0,
-        total_impressions: 0,
+        total_views: 0,
+        total_impressions: 0, // Mantido para compatibilidade
         total_reach: 0,
         total_replies: 0,
         total_exits: 0,
@@ -525,13 +557,16 @@ serve(async (req) => {
       },
     );
 
-    if (storiesAggregate.total_impressions > 0) {
+    // Manter impressions = views para compatibilidade com frontend antigo
+    storiesAggregate.total_impressions = storiesAggregate.total_views;
+
+    if (storiesAggregate.total_views > 0) {
       storiesAggregate.avg_completion_rate = Math.round(
-        (1 - storiesAggregate.total_exits / storiesAggregate.total_impressions) * 100,
+        (1 - storiesAggregate.total_exits / storiesAggregate.total_views) * 100,
       );
     }
 
-    // Demographics e online_followers mantidos como estavam, sem mexer aqui
+    // Demographics e online_followers mantidos como estavam
     const demographics: Record<string, unknown> = {};
     const breakdownTypes = ["age", "gender", "country", "city"];
 
@@ -605,13 +640,17 @@ serve(async (req) => {
 
     const messages: string[] = [];
     if (mediaItems.length > maxInsightsPosts) {
-      messages.push(`INSIGHTS_LIMIT: Buscamos insights detalhados apenas para os ${maxInsightsPosts} posts mais recentes.`);
+      messages.push(
+        `INSIGHTS_LIMIT: Buscamos insights detalhados apenas para os ${maxInsightsPosts} posts mais recentes.`,
+      );
     }
     if (Object.keys(demographics).length === 0) {
       messages.push("DEMOGRAPHICS_EMPTY: Demografia indisponível para esta conta/permissões.");
     }
 
-    const partialCount = mediaWithInsights.filter((m) => m.computed?.has_insights === false || m.computed?.is_partial === true).length;
+    const partialCount = mediaWithInsights.filter(
+      (m) => m.computed?.has_insights === false || m.computed?.is_partial === true,
+    ).length;
     if (partialCount > 0) {
       messages.push(`PARTIAL_METRICS: ${partialCount} itens com métricas parciais/indisponíveis.`);
     }
@@ -659,6 +698,10 @@ serve(async (req) => {
     const top_reels_by_views = [...reelsOnly].sort(byViewsDesc).slice(0, 20);
     const top_reels_by_score = [...reelsOnly].sort(byScoreDesc).slice(0, 20);
 
+    // ✅ Calcular totais agregados de views e reach
+    const totalViews = mediaWithInsights.reduce((sum, m) => sum + (m.computed?.views ?? 0), 0);
+    const totalReach = mediaWithInsights.reduce((sum, m) => sum + (m.computed?.reach ?? 0), 0);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -666,10 +709,14 @@ serve(async (req) => {
         duration_ms: duration,
         snapshot_date: new Date().toISOString().slice(0, 10),
         provider: "instagram_graph_api",
+        api_version: "v24.0",
         profile,
         media: mediaWithInsights,
         posts: mediaWithInsights,
         total_posts: mediaWithInsights.length,
+        // ✅ Totais agregados para o dashboard
+        total_views: totalViews,
+        total_reach: totalReach,
         top_posts_by_score,
         top_posts_by_reach,
         top_reels_by_views,
