@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
-import { Heart, MessageCircle, Activity, Loader2, Image, Video, Layers } from 'lucide-react';
+import { Heart, MessageCircle, Activity, Loader2 } from 'lucide-react';
+import { SortToggle, type SortOrder } from '@/components/ui/SortToggle';
 import {
   BarChart,
   Bar,
@@ -32,6 +34,10 @@ const Performance = () => {
   const { data, loading } = useDashboardData();
   const profile = data?.profile ?? null;
   const media = data?.media ?? [];
+
+  // Sort states
+  const [typeSort, setTypeSort] = useState<SortOrder>("desc");
+  const [summarySort, setSummarySort] = useState<SortOrder>("desc");
 
   if (loading) {
     return (
@@ -75,20 +81,36 @@ const Performance = () => {
     percentage: Math.round((i.value / interactionTotal) * 100),
   }));
 
-  // Performance by media type
-  const performanceByType = Object.keys(mediaTypeDistribution).map(type => {
-    const typeMedia = media.filter(m => m.media_type === type);
-    const typeLikes = typeMedia.reduce((sum, m) => sum + (m.like_count || 0), 0);
-    const typeComments = typeMedia.reduce((sum, m) => sum + (m.comments_count || 0), 0);
-    const avgEngagement = typeMedia.length > 0 ? Math.round((typeLikes + typeComments) / typeMedia.length) : 0;
-    return {
-      name: MEDIA_TYPE_LABELS[type] || type,
-      posts: typeMedia.length,
-      avgLikes: typeMedia.length > 0 ? Math.round(typeLikes / typeMedia.length) : 0,
-      avgComments: typeMedia.length > 0 ? Math.round(typeComments / typeMedia.length) : 0,
-      avgEngagement,
-    };
-  }).filter(item => item.posts > 0).sort((a, b) => b.avgEngagement - a.avgEngagement);
+  // Performance by media type with sorting
+  const performanceByType = useMemo(() => {
+    const result = Object.keys(mediaTypeDistribution).map(type => {
+      const typeMedia = media.filter(m => m.media_type === type);
+      const typeLikes = typeMedia.reduce((sum, m) => sum + (m.like_count || 0), 0);
+      const typeComments = typeMedia.reduce((sum, m) => sum + (m.comments_count || 0), 0);
+      const avgEngagement = typeMedia.length > 0 ? Math.round((typeLikes + typeComments) / typeMedia.length) : 0;
+      return {
+        name: MEDIA_TYPE_LABELS[type] || type,
+        posts: typeMedia.length,
+        avgLikes: typeMedia.length > 0 ? Math.round(typeLikes / typeMedia.length) : 0,
+        avgComments: typeMedia.length > 0 ? Math.round(typeComments / typeMedia.length) : 0,
+        avgEngagement,
+      };
+    }).filter(item => item.posts > 0);
+
+    return result.sort((a, b) => 
+      typeSort === "desc" ? b.avgEngagement - a.avgEngagement : a.avgEngagement - b.avgEngagement
+    );
+  }, [media, mediaTypeDistribution, typeSort]);
+
+  // Summary data with sorting
+  const summaryData = useMemo(() => {
+    const items = [
+      { metric: 'Curtidas', total: totalLikes, avg: avgLikes, best: Math.max(0, ...media.map((m) => m.like_count || 0)) },
+      { metric: 'Comentários', total: totalComments, avg: avgComments, best: Math.max(0, ...media.map((m) => m.comments_count || 0)) },
+      { metric: 'Engajamento', total: totalLikes + totalComments, avg: avgLikes + avgComments, best: 0 },
+    ];
+    return items.sort((a, b) => summarySort === "desc" ? b.total - a.total : a.total - b.total);
+  }, [totalLikes, totalComments, avgLikes, avgComments, media, summarySort]);
 
   return (
     <div className="space-y-6">
@@ -193,7 +215,16 @@ const Performance = () => {
       </div>
 
       {/* Performance by Media Type - Bar Chart */}
-      <ChartCard title="Engajamento Médio por Tipo" subtitle="Comparativo de performance entre formatos">
+      <ChartCard 
+        title="Engajamento Médio por Tipo" 
+        subtitle="Comparativo de performance entre formatos"
+        action={
+          <SortToggle 
+            sortOrder={typeSort} 
+            onToggle={() => setTypeSort(o => o === "desc" ? "asc" : "desc")} 
+          />
+        }
+      >
         <div className="h-[300px]">
           {performanceByType.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -225,7 +256,16 @@ const Performance = () => {
       </ChartCard>
 
       {/* Performance Summary Table */}
-      <ChartCard title="Resumo de Performance por Tipo" subtitle="Métricas detalhadas">
+      <ChartCard 
+        title="Resumo de Performance por Tipo" 
+        subtitle="Métricas detalhadas"
+        action={
+          <SortToggle 
+            sortOrder={typeSort} 
+            onToggle={() => setTypeSort(o => o === "desc" ? "asc" : "desc")} 
+          />
+        }
+      >
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
@@ -234,7 +274,7 @@ const Performance = () => {
                 <th>Posts</th>
                 <th>Média Curtidas</th>
                 <th>Média Comentários</th>
-                <th>Engajamento Médio</th>
+                <th>Engajamento Médio {typeSort === "desc" ? "▼" : "▲"}</th>
               </tr>
             </thead>
             <tbody>
@@ -261,36 +301,35 @@ const Performance = () => {
       </ChartCard>
 
       {/* General Performance Summary */}
-      <ChartCard title="Resumo Geral" subtitle="Métricas totais de todos os posts">
+      <ChartCard 
+        title="Resumo Geral" 
+        subtitle="Métricas totais de todos os posts"
+        action={
+          <SortToggle 
+            sortOrder={summarySort} 
+            onToggle={() => setSummarySort(o => o === "desc" ? "asc" : "desc")} 
+          />
+        }
+      >
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Métrica</th>
-                <th>Total</th>
+                <th>Total {summarySort === "desc" ? "▼" : "▲"}</th>
                 <th>Média/Post</th>
                 <th>Melhor</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="font-medium">Curtidas</td>
-                <td>{totalLikes.toLocaleString()}</td>
-                <td>{avgLikes.toLocaleString()}</td>
-                <td>{Math.max(0, ...media.map((m) => m.like_count || 0)).toLocaleString()}</td>
-              </tr>
-              <tr>
-                <td className="font-medium">Comentários</td>
-                <td>{totalComments.toLocaleString()}</td>
-                <td>{avgComments.toLocaleString()}</td>
-                <td>{Math.max(0, ...media.map((m) => m.comments_count || 0)).toLocaleString()}</td>
-              </tr>
-              <tr>
-                <td className="font-medium">Engajamento</td>
-                <td>{(totalLikes + totalComments).toLocaleString()}</td>
-                <td>{(avgLikes + avgComments).toLocaleString()}</td>
-                <td>-</td>
-              </tr>
+              {summaryData.map((item) => (
+                <tr key={item.metric}>
+                  <td className="font-medium">{item.metric}</td>
+                  <td>{item.total.toLocaleString()}</td>
+                  <td>{item.avg.toLocaleString()}</td>
+                  <td>{item.best > 0 ? item.best.toLocaleString() : '-'}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

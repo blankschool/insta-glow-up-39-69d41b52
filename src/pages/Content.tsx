@@ -4,6 +4,7 @@ import { useDashboardData } from "@/hooks/useDashboardData";
 import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatPercent, getComputedNumber, getReach } from "@/utils/ig";
 import { Image, Play, Clock, Grid2X2, Heart, MessageCircle, Bookmark, Eye, FileX } from "lucide-react";
+import { SortToggle, SortDropdown, type SortOrder } from "@/components/ui/SortToggle";
 import {
   AreaChart,
   Area,
@@ -24,6 +25,12 @@ export default function Content() {
   const stories = data?.stories ?? [];
   const media = useFilteredMedia(allMedia);
   const [activeTab, setActiveTab] = useState<ContentTab>("overview");
+
+  // Sort states
+  const [mediaTypeSort, setMediaTypeSort] = useState<SortOrder>("desc");
+  const [mediaTypeSortBy, setMediaTypeSortBy] = useState<"reach" | "er" | "likes">("reach");
+  const [contentGridSort, setContentGridSort] = useState<SortOrder>("desc");
+  const [contentGridSortBy, setContentGridSortBy] = useState<"engagement" | "reach" | "date">("engagement");
 
   // Filter media by active tab
   const filteredByTab = useMemo(() => {
@@ -96,7 +103,7 @@ export default function Content() {
     }).slice(-8);
   }, [media, filteredByTab, activeTab]);
 
-  // Media type analysis
+  // Media type analysis with sorting
   const mediaTypes = useMemo(() => {
     const dataToAnalyze = activeTab === "overview" ? media : filteredByTab;
     const groups: Record<string, { reach: number; er: number; likes: number; comments: number; saves: number; count: number }> = {};
@@ -119,7 +126,7 @@ export default function Content() {
 
     const maxReach = Math.max(...Object.values(groups).map(g => g.reach), 1);
 
-    return Object.entries(groups).map(([key, v]) => ({
+    let result = Object.entries(groups).map(([key, v]) => ({
       key,
       reach: v.reach,
       reachPercent: (v.reach / maxReach) * 100,
@@ -128,8 +135,50 @@ export default function Content() {
       comments: v.comments,
       saves: v.saves,
       count: v.count,
-    })).sort((a, b) => b.reach - a.reach);
-  }, [media, filteredByTab, activeTab]);
+    }));
+
+    // Sort based on preference
+    result.sort((a, b) => {
+      let aVal: number, bVal: number;
+      switch (mediaTypeSortBy) {
+        case "er":
+          aVal = a.er;
+          bVal = b.er;
+          break;
+        case "likes":
+          aVal = a.likes;
+          bVal = b.likes;
+          break;
+        default:
+          aVal = a.reach;
+          bVal = b.reach;
+      }
+      return mediaTypeSort === "desc" ? bVal - aVal : aVal - bVal;
+    });
+
+    return result;
+  }, [media, filteredByTab, activeTab, mediaTypeSort, mediaTypeSortBy]);
+
+  // Sorted content grid
+  const sortedContentGrid = useMemo(() => {
+    return [...filteredByTab].sort((a, b) => {
+      let aVal: number, bVal: number;
+      switch (contentGridSortBy) {
+        case "reach":
+          aVal = getReach(a) ?? 0;
+          bVal = getReach(b) ?? 0;
+          break;
+        case "date":
+          aVal = new Date(a.timestamp ?? 0).getTime();
+          bVal = new Date(b.timestamp ?? 0).getTime();
+          break;
+        default: // engagement
+          aVal = (a.like_count ?? 0) + (a.comments_count ?? 0);
+          bVal = (b.like_count ?? 0) + (b.comments_count ?? 0);
+      }
+      return contentGridSort === "desc" ? bVal - aVal : aVal - bVal;
+    });
+  }, [filteredByTab, contentGridSort, contentGridSortBy]);
 
   // Custom tooltip for chart
   const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: typeof weeklyChartData[0] }> }) => {
@@ -422,11 +471,17 @@ export default function Content() {
                 <div className="card">
                   <div className="chart-header flex justify-between items-center">
                     <h3 className="card-title">Media Type Analysis</h3>
-                    {activeTab !== "overview" && (
-                      <span className="text-xs text-muted-foreground">
-                        Filtrando: {activeTab}
-                      </span>
-                    )}
+                    <SortDropdown
+                      sortBy={mediaTypeSortBy}
+                      sortOrder={mediaTypeSort}
+                      options={[
+                        { value: "reach", label: "Alcance" },
+                        { value: "er", label: "Engajamento" },
+                        { value: "likes", label: "Curtidas" },
+                      ]}
+                      onSortByChange={(v) => setMediaTypeSortBy(v as "reach" | "er" | "likes")}
+                      onSortOrderChange={() => setMediaTypeSort(o => o === "desc" ? "asc" : "desc")}
+                    />
                   </div>
                   
                   {mediaTypes.length === 0 ? (
@@ -441,9 +496,9 @@ export default function Content() {
                             <th className="w-8">#</th>
                             <th>Tipo</th>
                             <th>Qtd</th>
-                            <th>Alcance ▼</th>
-                            <th>Taxa Eng.</th>
-                            <th>Likes</th>
+                            <th>Alcance {mediaTypeSortBy === "reach" && (mediaTypeSort === "desc" ? "▼" : "▲")}</th>
+                            <th>Taxa Eng. {mediaTypeSortBy === "er" && (mediaTypeSort === "desc" ? "▼" : "▲")}</th>
+                            <th>Likes {mediaTypeSortBy === "likes" && (mediaTypeSort === "desc" ? "▼" : "▲")}</th>
                             <th>Comments</th>
                             <th>Saves</th>
                           </tr>
@@ -499,13 +554,24 @@ export default function Content() {
                 {/* Content Grid - Show posts/reels thumbnails */}
                 {showContentGrid && filteredByTab.length > 0 && (
                   <div className="card">
-                    <div className="chart-header">
+                    <div className="chart-header flex justify-between items-center">
                       <h3 className="card-title">
                         {activeTab === "posts" ? "Posts" : "Reels"} ({filteredByTab.length})
                       </h3>
+                      <SortDropdown
+                        sortBy={contentGridSortBy}
+                        sortOrder={contentGridSort}
+                        options={[
+                          { value: "engagement", label: "Engajamento" },
+                          { value: "reach", label: "Alcance" },
+                          { value: "date", label: "Data" },
+                        ]}
+                        onSortByChange={(v) => setContentGridSortBy(v as "engagement" | "reach" | "date")}
+                        onSortOrderChange={() => setContentGridSort(o => o === "desc" ? "asc" : "desc")}
+                      />
                     </div>
                     <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                      {filteredByTab.slice(0, 12).map((item) => (
+                      {sortedContentGrid.slice(0, 12).map((item) => (
                         <div
                           key={item.id}
                           className="relative aspect-square rounded-lg overflow-hidden bg-secondary group cursor-pointer"
