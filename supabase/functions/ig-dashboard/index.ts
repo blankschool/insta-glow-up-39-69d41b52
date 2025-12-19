@@ -311,7 +311,8 @@ function computeMediaMetrics(
 
   const saves = savesPick.value;
   const reach = reachPick.value;
-  const views = viewsPick.value ?? reach;
+  // views and reach are distinct metrics - don't use reach as fallback for views
+  const views = viewsPick.value;
   const shares = sharesPick.value;
 
   const engagement = likes + comments + (saves ?? 0) + (shares ?? 0);
@@ -356,7 +357,7 @@ function computeMediaMetrics(
     shares,
     reach,
     views,
-    views_source: viewsPick.value !== null ? viewsPick.source : reach !== null ? "reach" : null,
+    views_source: viewsPick.source,
     total_interactions: totalInteractionsPick.value,
     engagement,
     score,
