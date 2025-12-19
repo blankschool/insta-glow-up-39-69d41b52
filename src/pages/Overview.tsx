@@ -2,13 +2,14 @@ import { useMemo } from "react";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { formatNumberOrDash, formatPercent, getComputedNumber, getReach, getSaves, getViews } from "@/utils/ig";
+import { Grid2X2, Eye, Users, UserPlus, Search, Heart, MessageCircle, Bookmark, Play, Clock, Image } from "lucide-react";
 
 const dayLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 
 function formatCompact(value: number | null): string {
   if (value === null) return "--";
   if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(".", ",")} mi`;
-  if (value >= 1000) return `${Math.round(value / 1000)} mil`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(".", ",")} mil`;
   return value.toLocaleString();
 }
 
@@ -22,13 +23,27 @@ export default function Overview() {
   const totalLikes = media.reduce((sum, item) => sum + (item.like_count ?? 0), 0);
   const totalComments = media.reduce((sum, item) => sum + (item.comments_count ?? 0), 0);
   const totalSaves = media.reduce((sum, item) => sum + (getSaves(item) ?? 0), 0);
+  
   const avgEr = useMemo(() => {
     const values = media.map((m) => getComputedNumber(m, "er")).filter((v): v is number => typeof v === "number");
     if (values.length === 0) return null;
     return values.reduce((s, v) => s + v, 0) / values.length;
   }, [media]);
+  
   const avgReach = media.length ? Math.round(totalReach / media.length) : null;
 
+  // Content counts
+  const counts = useMemo(() => {
+    const posts = media.filter((m) => m.media_type === "IMAGE" || m.media_type === "CAROUSEL_ALBUM");
+    const reels = media.filter((m) => m.media_product_type === "REELS" || m.media_product_type === "REEL");
+    return {
+      posts: posts.length,
+      reels: reels.length,
+      stories: data?.stories?.length ?? 0,
+    };
+  }, [media, data?.stories?.length]);
+
+  // Performance by day of week
   const dayData = useMemo(() => {
     const buckets = Array.from({ length: 7 }, () => 0);
     for (const item of media) {
@@ -45,6 +60,7 @@ export default function Overview() {
     }));
   }, [media]);
 
+  // Top content by engagement rate
   const topContent = useMemo(() => {
     return [...media]
       .map((item) => ({
@@ -57,8 +73,8 @@ export default function Overview() {
 
   if (loading) {
     return (
-      <div style={{ padding: 32 }}>
-        <p>Carregando...</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-muted-foreground">Carregando...</p>
       </div>
     );
   }
@@ -67,16 +83,13 @@ export default function Overview() {
     <>
       <FiltersBar />
 
-      <div className="content-area">
-        <div className="metrics-row">
+      <div className="content-area space-y-6">
+        {/* Business Overview Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Primary Metrics Card */}
           <div className="metrics-card primary">
             <div className="metric-icon blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </svg>
+              <Grid2X2 className="w-6 h-6" />
             </div>
             <div className="metric-group">
               <div className="metric-item">
@@ -94,31 +107,18 @@ export default function Overview() {
               <div className="metric-item">
                 <span className="metric-label">Views</span>
                 <span className="metric-value">{formatNumberOrDash(totalViews)}</span>
-                <span className="metric-change up">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="18,15 12,9 6,15" />
-                  </svg>
-                  --
-                </span>
               </div>
               <div className="metric-item">
                 <span className="metric-label">Reach</span>
                 <span className="metric-value">{formatNumberOrDash(totalReach)}</span>
-                <span className="metric-change up">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="18,15 12,9 6,15" />
-                  </svg>
-                  --
-                </span>
               </div>
             </div>
           </div>
+
+          {/* Secondary Metrics Card */}
           <div className="metrics-card">
             <div className="metric-icon search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              <Search className="w-6 h-6" />
             </div>
             <div className="metric-group">
               <div className="metric-item">
@@ -145,11 +145,12 @@ export default function Overview() {
           </div>
         </div>
 
+        {/* Performance Over Time Chart */}
         <div className="chart-section">
           <div className="chart-header">
             <div>
               <h3 className="chart-title">Performance Over Time</h3>
-              <div className="chart-legend" style={{ marginTop: 8 }}>
+              <div className="chart-legend mt-2">
                 <div className="legend-item">
                   <span className="legend-dot solid" /> Reach
                 </div>
@@ -158,50 +159,13 @@ export default function Overview() {
                 </div>
               </div>
             </div>
-            <div className="chart-actions">
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="18,15 12,9 6,15" />
-                </svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6,9 12,15 18,9" />
-                </svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="4" y1="21" x2="4" y2="14" />
-                  <line x1="4" y1="10" x2="4" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="12" />
-                  <line x1="12" y1="8" x2="12" y2="3" />
-                  <line x1="20" y1="21" x2="20" y2="16" />
-                  <line x1="20" y1="12" x2="20" y2="3" />
-                </svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="19" cy="12" r="1" />
-                  <circle cx="5" cy="12" r="1" />
-                </svg>
-              </button>
-            </div>
           </div>
           <div className="chart-container">
             <div className="chart-grid">
-              <div className="grid-line">
-                <span className="grid-label">3 mil</span>
-              </div>
-              <div className="grid-line">
-                <span className="grid-label">2 mil</span>
-              </div>
-              <div className="grid-line">
-                <span className="grid-label">1 mil</span>
-              </div>
-              <div className="grid-line">
-                <span className="grid-label">0</span>
-              </div>
+              <div className="grid-line"><span className="grid-label">3 mil</span></div>
+              <div className="grid-line"><span className="grid-label">2 mil</span></div>
+              <div className="grid-line"><span className="grid-label">1 mil</span></div>
+              <div className="grid-line"><span className="grid-label">0</span></div>
             </div>
             <div className="chart-line">
               <svg viewBox="0 0 1000 200" preserveAspectRatio="none">
@@ -226,27 +190,12 @@ export default function Overview() {
                 />
               </svg>
             </div>
-            <div className="chart-x-axis">
-              <span className="x-label">1 de nov.</span>
-              <span className="x-label">3 de nov.</span>
-              <span className="x-label">5 de nov.</span>
-              <span className="x-label">7 de nov.</span>
-              <span className="x-label">9 de nov.</span>
-              <span className="x-label">11 de nov.</span>
-              <span className="x-label">13 de nov.</span>
-              <span className="x-label">15 de nov.</span>
-              <span className="x-label">17 de nov.</span>
-              <span className="x-label">19 de nov.</span>
-              <span className="x-label">21 de nov.</span>
-              <span className="x-label">23 de nov.</span>
-              <span className="x-label">25 de nov.</span>
-              <span className="x-label">27 de nov.</span>
-              <span className="x-label">29 de nov.</span>
-            </div>
           </div>
         </div>
 
-        <div className="bottom-row">
+        {/* Bottom Row: Day of Week + Engagement Breakdown + Top Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Performance By Day Of Week */}
           <div className="card">
             <h3 className="card-title">Performance By Day Of Week</h3>
             <div className="bar-chart">
@@ -267,6 +216,8 @@ export default function Overview() {
               ))}
             </div>
           </div>
+
+          {/* Engagement Breakdown */}
           <div className="card">
             <h3 className="card-title">Engagement Breakdown</h3>
             <div className="engagement-chart">
@@ -287,39 +238,30 @@ export default function Overview() {
               <div className="engagement-stats">
                 <div className="stat-box">
                   <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <rect x="7" y="7" width="3" height="3" />
-                      <rect x="14" y="7" width="3" height="3" />
-                      <rect x="7" y="14" width="3" height="3" />
-                      <rect x="14" y="14" width="3" height="3" />
-                    </svg>
+                    <Image className="w-5 h-5" />
                   </div>
                   <span className="stat-label">Posts</span>
-                  <span className="stat-value">{media.length}</span>
+                  <span className="stat-value">{counts.posts}</span>
                 </div>
                 <div className="stat-box">
                   <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polygon points="5,3 19,12 5,21" />
-                    </svg>
+                    <Play className="w-5 h-5" />
                   </div>
                   <span className="stat-label">Reels</span>
-                  <span className="stat-value">-</span>
+                  <span className="stat-value">{counts.reels || "-"}</span>
                 </div>
                 <div className="stat-box">
                   <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12,6 12,12 16,14" />
-                    </svg>
+                    <Clock className="w-5 h-5" />
                   </div>
                   <span className="stat-label">Stories</span>
-                  <span className="stat-value">-</span>
+                  <span className="stat-value">{counts.stories || "-"}</span>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Top Performing Content */}
           <div className="card">
             <h3 className="card-title">Top Performing Content</h3>
             <div className="top-content-list">
@@ -352,7 +294,7 @@ export default function Overview() {
         </div>
 
         {error && (
-          <div style={{ padding: 16, color: "#c53030" }}>
+          <div className="p-4 text-destructive">
             {error}
           </div>
         )}

@@ -1,6 +1,16 @@
+import { useMemo } from "react";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { formatPercent, getComputedNumber, getReach } from "@/utils/ig";
+
+const dayLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+
+function formatCompact(value: number | null): string {
+  if (value === null) return "--";
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(".", ",")} mi`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(".", ",")} mil`;
+  return value.toLocaleString();
+}
 
 export default function Time() {
   const { data, loading, error } = useDashboardData();
@@ -10,16 +20,58 @@ export default function Time() {
   const totalLikes = media.reduce((sum, item) => sum + (item.like_count ?? 0), 0);
   const totalComments = media.reduce((sum, item) => sum + (item.comments_count ?? 0), 0);
 
-  const avgEr = (() => {
+  const avgEr = useMemo(() => {
     const values = media.map((m) => getComputedNumber(m, "er")).filter((v): v is number => typeof v === "number");
     if (!values.length) return null;
     return values.reduce((s, v) => s + v, 0) / values.length;
-  })();
+  }, [media]);
+
+  // Performance by day of week
+  const dayData = useMemo(() => {
+    const buckets = Array.from({ length: 7 }, () => ({ reach: 0, count: 0 }));
+    for (const item of media) {
+      if (!item.timestamp) continue;
+      const dt = new Date(item.timestamp);
+      const reach = getReach(item) ?? 0;
+      buckets[dt.getDay()].reach += reach;
+      buckets[dt.getDay()].count += 1;
+    }
+    const max = Math.max(...buckets.map((b) => b.reach), 1);
+    return buckets.map((bucket, idx) => ({
+      label: dayLabels[idx],
+      value: bucket.reach,
+      count: bucket.count,
+      height: Math.round((bucket.reach / max) * 180),
+    }));
+  }, [media]);
+
+  // Monthly aggregation for Time Analysis
+  const monthlyData = useMemo(() => {
+    const buckets: Record<string, { reach: number; likes: number; comments: number; ers: number[] }> = {};
+    for (const item of media) {
+      if (!item.timestamp) continue;
+      const d = new Date(item.timestamp);
+      const key = `${d.toLocaleDateString("pt-BR", { month: "short" })}. de ${d.getFullYear()}`;
+      if (!buckets[key]) buckets[key] = { reach: 0, likes: 0, comments: 0, ers: [] };
+      buckets[key].reach += getReach(item) ?? 0;
+      buckets[key].likes += item.like_count ?? 0;
+      buckets[key].comments += item.comments_count ?? 0;
+      const er = getComputedNumber(item, "er");
+      if (typeof er === "number") buckets[key].ers.push(er);
+    }
+    return Object.entries(buckets).map(([label, v]) => ({
+      label,
+      reach: v.reach,
+      likes: v.likes,
+      comments: v.comments,
+      er: v.ers.length ? v.ers.reduce((s, x) => s + x, 0) / v.ers.length : null,
+    }));
+  }, [media]);
 
   if (loading) {
     return (
-      <div style={{ padding: 32 }}>
-        <p>Carregando...</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-muted-foreground">Carregando...</p>
       </div>
     );
   }
@@ -28,42 +80,37 @@ export default function Time() {
     <>
       <FiltersBar showMediaType />
 
-      <div className="content-area">
-        <div className="card" style={{ marginBottom: 24 }}>
+      <div className="content-area space-y-6">
+        {/* Performance By Day Of Week */}
+        <div className="card">
           <div className="chart-header">
-            <h3 className="card-title">Performance By Day of Week</h3>
-            <div className="chart-actions">
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="18,15 12,9 6,15"/></svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6,9 12,15 18,9"/></svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-              </button>
+            <h3 className="card-title">Performance By Day Of Week</h3>
+            <div className="chart-legend">
+              <div className="legend-item">
+                <span className="legend-dot solid" /> Reach
+              </div>
             </div>
           </div>
-          <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", border: "2px dashed #e0e4e8", borderRadius: 12, background: "#fafbfc" }}>
-            <div style={{ textAlign: "center", color: "#718096" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#a0aec0" strokeWidth="1.5" style={{ width: 48, height: 48, marginBottom: 12 }}>
-                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-              <p style={{ fontSize: 16, fontWeight: 500, color: "#4a5568", marginBottom: 4 }}>Fonte de dados desconhecida</p>
-              <p style={{ fontSize: 13 }}>Não foi possível carregar a fonte de dados associada a este componente</p>
-              <a href="#" style={{ color: "#4facfe", fontSize: 13, textDecoration: "none", marginTop: 8, display: "inline-block" }}>Mais detalhes</a>
+          <div className="bar-chart" style={{ height: 240 }}>
+            <div className="bar-chart-y" style={{ fontSize: 10 }}>
+              <span>{formatCompact(Math.max(...dayData.map((d) => d.value)))}</span>
+              <span>{formatCompact(Math.max(...dayData.map((d) => d.value)) * 0.75)}</span>
+              <span>{formatCompact(Math.max(...dayData.map((d) => d.value)) * 0.5)}</span>
+              <span>{formatCompact(Math.max(...dayData.map((d) => d.value)) * 0.25)}</span>
+              <span>0</span>
             </div>
+            {dayData.map((d, idx) => (
+              <div key={d.label} className="bar-group" style={idx === 0 ? { marginLeft: 40 } : undefined}>
+                <div className="bar" style={{ height: `${Math.max(12, d.height)}px` }}>
+                  <span className="bar-value">{formatCompact(d.value)}</span>
+                </div>
+                <span className="bar-label">{d.label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
+        {/* Time Analysis Table */}
         <div className="card">
           <div className="chart-header">
             <h3 className="card-title">Time Analysis</h3>
@@ -76,38 +123,48 @@ export default function Time() {
               </button>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, fontSize: 12, color: "#718096" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#718096" strokeWidth="2" style={{ width: 14, height: 14 }}>
+          <div className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             <span>Media Posted (Data)</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16, fontSize: 11, color: "#718096", paddingBottom: 12, borderBottom: "1px solid #f0f2f5" }}>
-            <span></span>
-            <span>Media reach</span>
-            <span>Engagement rate</span>
-            <span>Likes</span>
-            <span>Comments</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16, fontSize: 13, padding: "16px 0", borderBottom: "1px solid #f0f2f5" }}>
-            <span>nov. de 2025</span>
-            <span>{totalReach.toLocaleString()}</span>
-            <span>{formatPercent(avgEr)}</span>
-            <span>{totalLikes.toLocaleString()}</span>
-            <span>{totalComments.toLocaleString()}</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16, fontSize: 13, padding: "16px 0", fontWeight: 600 }}>
-            <span>Total geral</span>
-            <span>{totalReach.toLocaleString()}</span>
-            <span>{formatPercent(avgEr)}</span>
-            <span>{totalLikes.toLocaleString()}</span>
-            <span>{totalComments.toLocaleString()}</span>
+          <div className="overflow-x-auto">
+            <table className="data-table w-full">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Media reach</th>
+                  <th>Engagement rate</th>
+                  <th>Likes</th>
+                  <th>Comments</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyData.map((row) => (
+                  <tr key={row.label}>
+                    <td className="font-medium">{row.label}</td>
+                    <td>{row.reach.toLocaleString()}</td>
+                    <td>{formatPercent(row.er)}</td>
+                    <td>{row.likes.toLocaleString()}</td>
+                    <td>{row.comments.toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="font-semibold border-t-2 border-border">
+                  <td>Total geral</td>
+                  <td>{totalReach.toLocaleString()}</td>
+                  <td>{formatPercent(avgEr)}</td>
+                  <td>{totalLikes.toLocaleString()}</td>
+                  <td>{totalComments.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         {error && (
-          <div style={{ padding: 16, color: "#c53030" }}>
+          <div className="p-4 text-destructive">
             {error}
           </div>
         )}
