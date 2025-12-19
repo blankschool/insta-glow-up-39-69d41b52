@@ -1,4 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
+import blankLogo from "@/assets/blank-logo.png";
+
 export function Sidebar() {
   const location = useLocation();
   const navItems = [{
@@ -16,12 +18,7 @@ export function Sidebar() {
   }];
   return <aside className="sidebar">
       <div className="logo">
-        <div className="logo-icon">
-          <svg viewBox="0 0 24 24">
-            <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
-          </svg>
-        </div>
-        <span className="logo-text">databloo</span>
+        <img src={blankLogo} alt="Blank" className="h-8 w-auto" />
       </div>
       <nav className="nav-menu">
         {navItems.map(item => <Link key={item.href} to={item.href} className={`nav-item ${location.pathname === item.href ? "active" : ""}`}>
