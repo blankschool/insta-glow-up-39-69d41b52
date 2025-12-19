@@ -63,6 +63,7 @@ export function getReach(item: IgMediaItem): number | null {
 }
 
 export function getViews(item: IgMediaItem): number | null {
+  // Views and reach are distinct metrics - don't use reach as fallback
   const computed = getComputedNumber(item, "views");
   if (computed !== null) return computed;
   const hasInsights = getComputedBool(item, "has_insights");
@@ -70,7 +71,6 @@ export function getViews(item: IgMediaItem): number | null {
   return (
     getInsightsNumber(item, "views") ??
     getInsightsNumber(item, "impressions") ??
-    getInsightsNumber(item, "reach") ??
     null
   );
 }
