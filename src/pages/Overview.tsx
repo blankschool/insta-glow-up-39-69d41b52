@@ -1,8 +1,10 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatNumberOrDash, formatPercent, getComputedNumber, getReach, getSaves, getViews } from "@/utils/ig";
-import { Grid2X2, Eye, Users, UserPlus, Search, Heart, MessageCircle, Bookmark, Play, Clock, Image } from "lucide-react";
+import { Grid2X2, Search, Play, Clock, Image } from "lucide-react";
 
 const dayLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 
@@ -16,7 +18,10 @@ function formatCompact(value: number | null): string {
 export default function Overview() {
   const { data, loading, error } = useDashboardData();
   const profile = data?.profile ?? null;
-  const media = data?.media ?? [];
+  const allMedia = data?.media ?? [];
+  
+  // Apply filters to media
+  const media = useFilteredMedia(allMedia);
 
   const totalViews = media.reduce((sum, item) => sum + (getViews(item) ?? 0), 0);
   const totalReach = media.reduce((sum, item) => sum + (getReach(item) ?? 0), 0);
@@ -60,7 +65,7 @@ export default function Overview() {
     }));
   }, [media]);
 
-  // Top content by engagement rate
+  // Top content by engagement rate (clickable)
   const topContent = useMemo(() => {
     return [...media]
       .map((item) => ({
@@ -261,7 +266,7 @@ export default function Overview() {
             </div>
           </div>
 
-          {/* Top Performing Content */}
+          {/* Top Performing Content - Clickable */}
           <div className="card">
             <h3 className="card-title">Top Performing Content</h3>
             <div className="top-content-list">
@@ -271,7 +276,11 @@ export default function Overview() {
                 <span>Engagement rate ▼</span>
               </div>
               {topContent.map((row, index) => (
-                <div className="top-content-item" key={row.item.id ?? index}>
+                <Link 
+                  to={`/media/${row.item.id}`}
+                  className="top-content-item hover:bg-accent/50 rounded-lg transition-colors cursor-pointer" 
+                  key={row.item.id ?? index}
+                >
                   <span className="item-rank">{index + 1}.</span>
                   <div
                     className="item-preview teal"
@@ -287,7 +296,7 @@ export default function Overview() {
                       <div className="engagement-bar-small-fill" style={{ width: `${Math.max(10, row.er)}%` }} />
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
