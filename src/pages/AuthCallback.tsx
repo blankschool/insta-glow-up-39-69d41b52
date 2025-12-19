@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +18,9 @@ export default function AuthCallback() {
   const { user, session, refreshConnectedAccount } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Prevent duplicate calls - authorization codes can only be used once
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -40,6 +43,13 @@ export default function AuthCallback() {
       // Wait for auth to be ready
       return;
     }
+
+    // Prevent duplicate processing of the same code
+    if (hasProcessedRef.current) {
+      console.log('[AuthCallback] Code already processed, skipping...');
+      return;
+    }
+    hasProcessedRef.current = true;
 
     const exchangeCode = async () => {
       try {
