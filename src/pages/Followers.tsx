@@ -1,6 +1,25 @@
+import { useMemo } from "react";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { BrazilMap } from "@/components/dashboard/BrazilMap";
 import { Users, UserPlus } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+const tooltipStyle = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+  padding: "12px",
+};
 
 export default function Followers() {
   const { data, loading, error } = useDashboardData();
@@ -8,51 +27,112 @@ export default function Followers() {
   const followersCount = data?.profile?.followers_count ?? 0;
   const followsCount = data?.profile?.follows_count ?? 0;
 
-  const ageGroups = demographics.audience_gender_age
-    ? (() => {
-        const out: Record<string, number> = {};
-        Object.entries(demographics.audience_gender_age).forEach(([key, value]) => {
-          const age = key.split(".")[1];
-          if (age) out[age] = (out[age] || 0) + value;
-        });
-        return Object.entries(out)
-          .sort((a, b) => {
-            const aNum = parseInt(a[0].split("-")[0]);
-            const bNum = parseInt(b[0].split("-")[0]);
-            return aNum - bNum;
-          })
-          .map(([range, value]) => ({ range, value }));
-      })()
-    : [];
+  const ageGroups = useMemo(() => {
+    if (!demographics.audience_gender_age) return [];
+    const out: Record<string, number> = {};
+    Object.entries(demographics.audience_gender_age).forEach(([key, value]) => {
+      const age = key.split(".")[1];
+      if (age) out[age] = (out[age] || 0) + value;
+    });
+    return Object.entries(out)
+      .sort((a, b) => {
+        const aNum = parseInt(a[0].split("-")[0]);
+        const bNum = parseInt(b[0].split("-")[0]);
+        return aNum - bNum;
+      })
+      .map(([range, value]) => ({
+        range,
+        value,
+        percentage: followersCount > 0 ? ((value / followersCount) * 100).toFixed(1) : "0",
+      }));
+  }, [demographics.audience_gender_age, followersCount]);
 
-  const countries = demographics.audience_country
-    ? Object.entries(demographics.audience_country)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([key, value]) => ({ key, value }))
-    : [];
+  const countries = useMemo(() => {
+    if (!demographics.audience_country) return [];
+    return Object.entries(demographics.audience_country)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([key, value]) => ({ key, value }));
+  }, [demographics.audience_country]);
 
-  const cities = demographics.audience_city
-    ? Object.entries(demographics.audience_city)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([key, value]) => ({ key, value }))
-    : [];
+  const cities = useMemo(() => {
+    if (!demographics.audience_city) return [];
+    return Object.entries(demographics.audience_city)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([key, value]) => ({ key, value }));
+  }, [demographics.audience_city]);
 
-  const genders = demographics.audience_gender_age
-    ? (() => {
-        const genderTotals: Record<string, number> = {};
-        Object.entries(demographics.audience_gender_age).forEach(([key, value]) => {
-          const gender = key.split(".")[0];
-          const label = gender === "M" ? "Masculino" : gender === "F" ? "Feminino" : gender;
-          genderTotals[label] = (genderTotals[label] || 0) + value;
-        });
-        return Object.entries(genderTotals)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 4)
-          .map(([key, value]) => ({ key, value }));
-      })()
-    : [];
+  const genders = useMemo(() => {
+    if (!demographics.audience_gender_age) return [];
+    const genderTotals: Record<string, number> = {};
+    Object.entries(demographics.audience_gender_age).forEach(([key, value]) => {
+      const gender = key.split(".")[0];
+      const label = gender === "M" ? "Masculino" : gender === "F" ? "Feminino" : gender;
+      genderTotals[label] = (genderTotals[label] || 0) + value;
+    });
+    return Object.entries(genderTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([key, value]) => ({ key, value }));
+  }, [demographics.audience_gender_age]);
+
+  // Get state-level data for Brazil map
+  const stateData = useMemo(() => {
+    // Check if we have city data that might contain Brazilian cities
+    const brazilianStates: Record<string, number> = {};
+    
+    // Try to extract state data from cities (format: "City, State" or just city names)
+    if (demographics.audience_city) {
+      Object.entries(demographics.audience_city).forEach(([cityKey, value]) => {
+        // Common Brazilian city-state patterns
+        const parts = cityKey.split(",").map((s) => s.trim());
+        if (parts.length >= 2) {
+          const state = parts[parts.length - 1];
+          brazilianStates[state] = (brazilianStates[state] || 0) + value;
+        } else {
+          // Map known Brazilian cities to states
+          const cityStateMap: Record<string, string> = {
+            "São Paulo": "São Paulo",
+            "Rio de Janeiro": "Rio de Janeiro",
+            "Brasília": "Distrito Federal",
+            "Salvador": "Bahia",
+            "Fortaleza": "Ceará",
+            "Belo Horizonte": "Minas Gerais",
+            "Manaus": "Amazonas",
+            "Curitiba": "Paraná",
+            "Recife": "Pernambuco",
+            "Porto Alegre": "Rio Grande do Sul",
+            "Goiânia": "Goiás",
+            "Belém": "Pará",
+            "Guarulhos": "São Paulo",
+            "Campinas": "São Paulo",
+            "São Luís": "Maranhão",
+            "Maceió": "Alagoas",
+            "Natal": "Rio Grande do Norte",
+            "João Pessoa": "Paraíba",
+            "Teresina": "Piauí",
+            "Campo Grande": "Mato Grosso do Sul",
+            "Cuiabá": "Mato Grosso",
+            "Florianópolis": "Santa Catarina",
+            "Vitória": "Espírito Santo",
+            "Aracaju": "Sergipe",
+            "Palmas": "Tocantins",
+            "Porto Velho": "Rondônia",
+            "Macapá": "Amapá",
+            "Boa Vista": "Roraima",
+            "Rio Branco": "Acre",
+          };
+          const state = cityStateMap[cityKey];
+          if (state) {
+            brazilianStates[state] = (brazilianStates[state] || 0) + value;
+          }
+        }
+      });
+    }
+
+    return brazilianStates;
+  }, [demographics.audience_city]);
 
   if (loading) {
     return (
@@ -76,7 +156,7 @@ export default function Followers() {
             <div className="metric-group">
               <div className="metric-item">
                 <span className="metric-label">Followers</span>
-                <span className="metric-value">{followersCount.toLocaleString()}</span>
+                <span className="metric-value">{followersCount.toLocaleString("pt-BR")}</span>
               </div>
             </div>
           </div>
@@ -87,7 +167,7 @@ export default function Followers() {
             <div className="metric-group">
               <div className="metric-item">
                 <span className="metric-label">Follows</span>
-                <span className="metric-value">{followsCount.toLocaleString()}</span>
+                <span className="metric-value">{followsCount.toLocaleString("pt-BR")}</span>
               </div>
             </div>
           </div>
@@ -102,22 +182,51 @@ export default function Followers() {
                 <span className="legend-dot solid" /> Followers
               </div>
             </div>
-            <div className="bar-chart" style={{ height: 200 }}>
-              <div className="bar-chart-y" style={{ fontSize: 10 }}>
-                <span>{Math.round(Math.max(...ageGroups.map((g) => g.value), 0))}</span>
-                <span>{Math.round(Math.max(...ageGroups.map((g) => g.value), 0) * 0.66)}</span>
-                <span>{Math.round(Math.max(...ageGroups.map((g) => g.value), 0) * 0.33)}</span>
-                <span>0</span>
-              </div>
-              {ageGroups.map((group, idx) => {
-                const max = Math.max(...ageGroups.map((g) => g.value), 1);
-                return (
-                  <div key={group.range} className="bar-group" style={idx === 0 ? { marginLeft: 35 } : undefined}>
-                    <div className="bar" style={{ height: Math.max(8, (group.value / max) * 140), width: 24 }} />
-                    <span className="bar-label">{group.range}</span>
-                  </div>
-                );
-              })}
+            <div className="h-52">
+              {ageGroups.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ageGroups} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis
+                      dataKey="range"
+                      tick={{ fontSize: 10 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelStyle={{ fontWeight: 600, marginBottom: "4px", color: "hsl(var(--foreground))" }}
+                      formatter={(value: number, _, props) => {
+                        const percentage = props.payload?.percentage || "0";
+                        return [
+                          <span key="value">
+                            {value.toLocaleString("pt-BR")} <span className="text-muted-foreground">({percentage}%)</span>
+                          </span>,
+                          "Followers",
+                        ];
+                      }}
+                      labelFormatter={(label) => `Faixa etária: ${label}`}
+                      cursor={{ fill: "hsl(var(--accent))", opacity: 0.3 }}
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                  Nenhum dado de faixa etária disponível
+                </div>
+              )}
             </div>
           </div>
           
@@ -125,21 +234,7 @@ export default function Followers() {
             <div className="chart-header">
               <h3 className="card-title">Followers By Location</h3>
             </div>
-            <div className="relative h-56 bg-secondary/30 rounded-lg overflow-hidden">
-              <svg viewBox="0 0 800 400" className="w-full h-full">
-                <path d="M150,180 L160,175 L165,180 L170,178 L175,182 L180,185 L178,190 L172,195 L165,192 L158,188 L155,185 Z" fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="0.5"/>
-                <path d="M200,160 L230,155 L250,160 L260,165 L265,175 L260,185 L250,190 L235,188 L220,185 L210,180 L205,170 Z" fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="0.5"/>
-                <path d="M280,140 L350,135 L400,140 L420,150 L430,165 L425,180 L410,190 L380,195 L340,192 L300,185 L285,170 L280,155 Z" fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="0.5"/>
-                <path d="M440,120 L520,115 L580,125 L620,140 L640,160 L635,185 L610,200 L560,210 L500,205 L460,190 L445,165 L440,140 Z" fill="hsl(var(--muted))" stroke="hsl(var(--border))" strokeWidth="0.5"/>
-                <path d="M320,200 L340,195 L355,200 L360,210 L355,225 L340,235 L320,230 L310,220 L315,205 Z" fill="hsl(var(--primary))" stroke="hsl(var(--primary))" strokeWidth="1"/>
-                <circle cx="338" cy="215" r="8" fill="hsl(var(--primary))"/>
-              </svg>
-              <div className="absolute bottom-4 left-4 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="bg-muted px-2 py-0.5 rounded">1</span>
-                <div className="w-24 h-2 bg-gradient-to-r from-muted to-primary rounded" />
-                <span>{countries[0]?.value?.toLocaleString() ?? 0}</span>
-              </div>
-            </div>
+            <BrazilMap data={stateData} total={followersCount} />
           </div>
         </div>
 
@@ -155,18 +250,22 @@ export default function Followers() {
                 <span>% of Total</span>
               </div>
               <div className="space-y-2 mt-2 text-sm">
-                {countries.map((row) => (
-                  <div key={row.key} className="grid grid-cols-3 gap-2 items-center">
-                    <span className="truncate">{row.key}</span>
-                    <div className="flex items-center gap-1">
-                      <span>{row.value.toLocaleString()}</span>
-                      <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
-                        <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (countries[0]?.value || 1)) * 100)}%` }} />
+                {countries.length > 0 ? (
+                  countries.map((row) => (
+                    <div key={row.key} className="grid grid-cols-3 gap-2 items-center">
+                      <span className="truncate">{row.key}</span>
+                      <div className="flex items-center gap-1">
+                        <span>{row.value.toLocaleString("pt-BR")}</span>
+                        <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
+                          <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (countries[0]?.value || 1)) * 100)}%` }} />
+                        </div>
                       </div>
+                      <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
                     </div>
-                    <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-muted-foreground text-xs py-2">Sem dados</div>
+                )}
               </div>
             </div>
 
@@ -178,18 +277,22 @@ export default function Followers() {
                 <span>% of Total</span>
               </div>
               <div className="space-y-2 mt-2 text-sm">
-                {cities.map((row) => (
-                  <div key={row.key} className="grid grid-cols-3 gap-2 items-center">
-                    <span className="truncate">{row.key}</span>
-                    <div className="flex items-center gap-1">
-                      <span>{row.value.toLocaleString()}</span>
-                      <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
-                        <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (cities[0]?.value || 1)) * 100)}%` }} />
+                {cities.length > 0 ? (
+                  cities.map((row) => (
+                    <div key={row.key} className="grid grid-cols-3 gap-2 items-center">
+                      <span className="truncate">{row.key}</span>
+                      <div className="flex items-center gap-1">
+                        <span>{row.value.toLocaleString("pt-BR")}</span>
+                        <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
+                          <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (cities[0]?.value || 1)) * 100)}%` }} />
+                        </div>
                       </div>
+                      <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
                     </div>
-                    <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-muted-foreground text-xs py-2">Sem dados</div>
+                )}
               </div>
             </div>
 
@@ -201,18 +304,22 @@ export default function Followers() {
                 <span>% of Total</span>
               </div>
               <div className="space-y-2 mt-2 text-sm">
-                {ageGroups.map((row) => (
-                  <div key={row.range} className="grid grid-cols-3 gap-2 items-center">
-                    <span>{row.range}</span>
-                    <div className="flex items-center gap-1">
-                      <span>{row.value.toLocaleString()}</span>
-                      <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
-                        <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (ageGroups[0]?.value || 1)) * 100)}%` }} />
+                {ageGroups.length > 0 ? (
+                  ageGroups.map((row) => (
+                    <div key={row.range} className="grid grid-cols-3 gap-2 items-center">
+                      <span>{row.range}</span>
+                      <div className="flex items-center gap-1">
+                        <span>{row.value.toLocaleString("pt-BR")}</span>
+                        <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
+                          <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (ageGroups[0]?.value || 1)) * 100)}%` }} />
+                        </div>
                       </div>
+                      <span>{row.percentage}%</span>
                     </div>
-                    <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-muted-foreground text-xs py-2">Sem dados</div>
+                )}
               </div>
             </div>
 
@@ -224,18 +331,22 @@ export default function Followers() {
                 <span>% of Total</span>
               </div>
               <div className="space-y-2 mt-2 text-sm">
-                {genders.map((row) => (
-                  <div key={row.key} className="grid grid-cols-3 gap-2 items-center">
-                    <span>{row.key}</span>
-                    <div className="flex items-center gap-1">
-                      <span>{row.value.toLocaleString()}</span>
-                      <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
-                        <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (genders[0]?.value || 1)) * 100)}%` }} />
+                {genders.length > 0 ? (
+                  genders.map((row) => (
+                    <div key={row.key} className="grid grid-cols-3 gap-2 items-center">
+                      <span>{row.key}</span>
+                      <div className="flex items-center gap-1">
+                        <span>{row.value.toLocaleString("pt-BR")}</span>
+                        <div className="w-12 h-1.5 bg-secondary rounded overflow-hidden">
+                          <div className="h-full bg-primary rounded" style={{ width: `${Math.min(100, (row.value / (genders[0]?.value || 1)) * 100)}%` }} />
+                        </div>
                       </div>
+                      <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
                     </div>
-                    <span>{followersCount ? `${Math.round((row.value / followersCount) * 100)}%` : "--"}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-muted-foreground text-xs py-2">Sem dados</div>
+                )}
               </div>
             </div>
           </div>

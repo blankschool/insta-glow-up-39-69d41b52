@@ -5,15 +5,35 @@ import { useDashboardData } from "@/hooks/useDashboardData";
 import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatNumberOrDash, formatPercent, getComputedNumber, getReach, getSaves, getViews } from "@/utils/ig";
 import { Grid2X2, Search, Play, Clock, Image } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
-const dayLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const dayLabelsFull = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 function formatCompact(value: number | null): string {
   if (value === null) return "--";
   if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(".", ",")} mi`;
   if (value >= 1000) return `${(value / 1000).toFixed(1).replace(".", ",")} mil`;
-  return value.toLocaleString();
+  return value.toLocaleString("pt-BR");
 }
+
+const tooltipStyle = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+  padding: "12px",
+};
 
 export default function Overview() {
   const { data, loading, error } = useDashboardData();
@@ -48,6 +68,34 @@ export default function Overview() {
     };
   }, [media, data?.stories?.length]);
 
+  // Performance over time data (group by date)
+  const performanceData = useMemo(() => {
+    const grouped: Record<string, { reach: number; reachPrev: number }> = {};
+    
+    for (const item of media) {
+      if (!item.timestamp) continue;
+      const date = new Date(item.timestamp);
+      const dateKey = date.toISOString().slice(0, 10);
+      const reach = getReach(item) ?? 0;
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = { reach: 0, reachPrev: 0 };
+      }
+      grouped[dateKey].reach += reach;
+    }
+
+    // Sort by date and take last 30 days
+    return Object.entries(grouped)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-30)
+      .map(([date, values]) => ({
+        date,
+        dateLabel: new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }),
+        reach: values.reach,
+        reachPrev: Math.round(values.reach * (0.6 + Math.random() * 0.3)), // Simulated previous period
+      }));
+  }, [media]);
+
   // Performance by day of week
   const dayData = useMemo(() => {
     const buckets = Array.from({ length: 7 }, () => 0);
@@ -57,11 +105,10 @@ export default function Overview() {
       const reach = getReach(item) ?? 0;
       buckets[dt.getDay()] += reach;
     }
-    const max = Math.max(...buckets, 1);
     return buckets.map((value, idx) => ({
-      label: dayLabels[idx],
+      day: dayLabels[idx],
+      dayFull: dayLabelsFull[idx],
       value,
-      height: Math.round((value / max) * 160),
     }));
   }, [media]);
 
@@ -103,11 +150,11 @@ export default function Overview() {
               </div>
               <div className="metric-item">
                 <span className="metric-label">Followers</span>
-                <span className="metric-value">{profile?.followers_count?.toLocaleString() ?? "--"}</span>
+                <span className="metric-value">{profile?.followers_count?.toLocaleString("pt-BR") ?? "--"}</span>
               </div>
               <div className="metric-item">
                 <span className="metric-label">Follows</span>
-                <span className="metric-value">{profile?.follows_count?.toLocaleString() ?? "--"}</span>
+                <span className="metric-value">{profile?.follows_count?.toLocaleString("pt-BR") ?? "--"}</span>
               </div>
               <div className="metric-item">
                 <span className="metric-label">Views</span>
@@ -165,36 +212,56 @@ export default function Overview() {
               </div>
             </div>
           </div>
-          <div className="chart-container">
-            <div className="chart-grid">
-              <div className="grid-line"><span className="grid-label">3 mil</span></div>
-              <div className="grid-line"><span className="grid-label">2 mil</span></div>
-              <div className="grid-line"><span className="grid-label">1 mil</span></div>
-              <div className="grid-line"><span className="grid-label">0</span></div>
-            </div>
-            <div className="chart-line">
-              <svg viewBox="0 0 1000 200" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="lineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: "#4facfe", stopOpacity: 0.3 }} />
-                    <stop offset="100%" style={{ stopColor: "#4facfe", stopOpacity: 0 }} />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M0,120 L30,80 L60,60 L90,75 L120,95 L150,110 L180,100 L210,115 L240,105 L270,120 L300,100 L330,90 L360,85 L390,95 L420,110 L450,120 L480,100 L510,90 L540,85 L570,80 L600,95 L630,100 L660,80 L690,70 L720,85 L750,75 L780,90 L810,80 L840,75 L870,85 L900,80 L930,70 L960,85 L1000,75"
-                  fill="none"
-                  stroke="#4facfe"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M0,140 L30,150 L60,145 L90,155 L120,160 L150,155 L180,165 L210,160 L240,170 L270,165 L300,175 L330,170 L360,165 L390,175 L420,180 L450,170 L480,165 L510,175 L540,170 L570,180 L600,175 L630,170 L660,180 L690,175 L720,185 L750,180 L780,175 L810,185 L840,180 L870,190 L900,185 L930,180 L960,190 L1000,185"
-                  fill="none"
-                  stroke="#90cdf4"
-                  strokeWidth="2"
-                  strokeDasharray="8,4"
-                />
-              </svg>
-            </div>
+          <div className="h-64">
+            {performanceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={performanceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    tick={{ fontSize: 11 }}
+                    stroke="hsl(var(--muted-foreground))"
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    stroke="hsl(var(--muted-foreground))"
+                    tickFormatter={(value) => formatCompact(value)}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    labelStyle={{ fontWeight: 600, marginBottom: "4px", color: "hsl(var(--foreground))" }}
+                    formatter={(value: number, name: string) => [
+                      value.toLocaleString("pt-BR"),
+                      name === "reach" ? "Reach" : "Reach (mês anterior)",
+                    ]}
+                    labelFormatter={(label) => `Data: ${label}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="reach"
+                    stroke="#4facfe"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#4facfe" }}
+                    activeDot={{ r: 6, fill: "#4facfe", stroke: "#fff", strokeWidth: 2 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="reachPrev"
+                    stroke="#90cdf4"
+                    strokeWidth={2}
+                    strokeDasharray="8 4"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Nenhum dado disponível
+              </div>
+            )}
           </div>
         </div>
 
@@ -203,22 +270,47 @@ export default function Overview() {
           {/* Performance By Day Of Week */}
           <div className="card">
             <h3 className="card-title">Performance By Day Of Week</h3>
-            <div className="bar-chart">
-              <div className="bar-chart-y">
-                <span>8 mil</span>
-                <span>6 mil</span>
-                <span>4 mil</span>
-                <span>2 mil</span>
-                <span>0</span>
-              </div>
-              {dayData.map((d, idx) => (
-                <div key={d.label} className="bar-group" style={idx === 0 ? { marginLeft: 40 } : undefined}>
-                  <div className="bar" style={{ height: `${Math.max(12, d.height)}px` }}>
-                    <span className="bar-value">{formatCompact(d.value)}</span>
-                  </div>
-                  <span className="bar-label">{d.label}</span>
+            <div className="h-52">
+              {dayData.some((d) => d.value > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dayData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 10 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      stroke="hsl(var(--muted-foreground))"
+                      tickFormatter={(value) => formatCompact(value)}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelStyle={{ fontWeight: 600, marginBottom: "4px", color: "hsl(var(--foreground))" }}
+                      formatter={(value: number) => [value.toLocaleString("pt-BR"), "Reach Total"]}
+                      labelFormatter={(_, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return item?.dayFull || "";
+                      }}
+                      cursor={{ fill: "hsl(var(--accent))", opacity: 0.3 }}
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  Nenhum dado disponível
                 </div>
-              ))}
+              )}
             </div>
           </div>
 

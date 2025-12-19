@@ -341,8 +341,12 @@ const Posts = () => {
                         backgroundColor: 'hsl(var(--card))', 
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
-                        color: 'hsl(var(--foreground))'
-                      }} 
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        padding: '12px',
+                      }}
+                      labelStyle={{ fontWeight: 600, marginBottom: '4px', color: 'hsl(var(--foreground))' }}
+                      formatter={(value: number) => [value.toLocaleString('pt-BR'), '']}
+                      cursor={{ fill: 'hsl(var(--accent))', opacity: 0.3 }}
                     />
                     <Bar dataKey="score" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} name="Score" />
                     <Bar dataKey="likes" fill="hsl(var(--muted-foreground))" radius={[2, 2, 0, 0]} name="Curtidas" />

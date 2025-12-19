@@ -118,8 +118,13 @@ const Reels = () => {
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--card))', 
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }} 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      padding: '12px',
+                    }}
+                    labelStyle={{ fontWeight: 600, marginBottom: '4px', color: 'hsl(var(--foreground))' }}
+                    formatter={(value: number) => [value.toLocaleString('pt-BR'), '']}
+                    cursor={{ fill: 'hsl(var(--accent))', opacity: 0.3 }}
                   />
                   <Legend />
                   {hasViews && <Bar dataKey="views" fill="hsl(var(--foreground) / 0.35)" radius={[4, 4, 0, 0]} name="Views" />}

@@ -142,8 +142,13 @@ const Demographics = () => {
                           backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                          padding: '12px',
                         }}
-                        formatter={(value) => [`${value}%`, 'Percentual']}
+                        labelStyle={{ fontWeight: 600, marginBottom: '4px', color: 'hsl(var(--foreground))' }}
+                        formatter={(value: number) => [`${value.toLocaleString('pt-BR')}%`, 'Percentual']}
+                        labelFormatter={(label) => `Faixa etária: ${label}`}
+                        cursor={{ fill: 'hsl(var(--accent))', opacity: 0.3 }}
                       />
                       <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -178,8 +183,11 @@ const Demographics = () => {
                           backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                          padding: '12px',
                         }}
-                        formatter={(value) => [`${value}%`, 'Percentual']}
+                        labelStyle={{ fontWeight: 600, marginBottom: '4px', color: 'hsl(var(--foreground))' }}
+                        formatter={(value: number) => [`${value.toLocaleString('pt-BR')}%`, 'Percentual']}
                       />
                     </PieChart>
                   </ResponsiveContainer>

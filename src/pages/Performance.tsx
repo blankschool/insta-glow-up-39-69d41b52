@@ -210,8 +210,12 @@ const Performance = () => {
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    padding: '12px',
                   }}
-                  formatter={(value: number, name: string) => [value.toLocaleString(), name === 'avgEngagement' ? 'Engajamento Médio' : name]}
+                  labelStyle={{ fontWeight: 600, marginBottom: '4px', color: 'hsl(var(--foreground))' }}
+                  formatter={(value: number, name: string) => [value.toLocaleString('pt-BR'), name === 'avgEngagement' ? 'Engajamento Médio' : name]}
+                  cursor={{ fill: 'hsl(var(--accent))', opacity: 0.3 }}
                 />
                 <Bar dataKey="avgEngagement" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Engajamento Médio" />
               </BarChart>
