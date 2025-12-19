@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatPercent, getComputedNumber, getReach } from "@/utils/ig";
 
 const dayLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
@@ -14,7 +15,8 @@ function formatCompact(value: number | null): string {
 
 export default function Time() {
   const { data, loading, error } = useDashboardData();
-  const media = data?.media ?? [];
+  const allMedia = data?.media ?? [];
+  const media = useFilteredMedia(allMedia);
 
   const totalReach = media.reduce((sum, item) => sum + (getReach(item) ?? 0), 0);
   const totalLikes = media.reduce((sum, item) => sum + (item.like_count ?? 0), 0);

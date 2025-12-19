@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatPercent, getComputedNumber, getReach } from "@/utils/ig";
 import { Image, Play, Clock, Grid2X2 } from "lucide-react";
 
@@ -8,7 +9,8 @@ type ContentTab = "overview" | "posts" | "reels" | "stories";
 
 export default function Content() {
   const { data, loading, error } = useDashboardData();
-  const media = data?.media ?? [];
+  const allMedia = data?.media ?? [];
+  const media = useFilteredMedia(allMedia);
   const [activeTab, setActiveTab] = useState<ContentTab>("overview");
 
   const counts = useMemo(() => {
