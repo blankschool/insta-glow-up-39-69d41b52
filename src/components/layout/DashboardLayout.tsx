@@ -4,7 +4,7 @@ import { Topbar } from './Topbar';
 
 export function DashboardLayout() {
   return (
-    <div className="app-shell dark">
+    <div className="app-shell">
       <Sidebar />
       <div className="app-main">
         <Topbar />
