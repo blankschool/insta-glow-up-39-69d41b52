@@ -28,30 +28,46 @@ export function getComputedNumber(item: IgMediaItem, key: string): number | null
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+export function getComputedBool(item: IgMediaItem, key: string): boolean | null {
+  const value = item.computed?.[key];
+  return typeof value === "boolean" ? value : null;
+}
+
 export function getInsightsNumber(item: IgMediaItem, key: string): number | null {
   const value = item.insights?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export function getSaves(item: IgMediaItem): number | null {
-  return (
-    getComputedNumber(item, "saves") ??
-    getInsightsNumber(item, "saved") ??
-    getInsightsNumber(item, "saves") ??
-    null
-  );
+  const computed = getComputedNumber(item, "saves");
+  if (computed !== null) return computed;
+  const hasInsights = getComputedBool(item, "has_insights");
+  if (hasInsights) return null;
+  return getInsightsNumber(item, "saved") ?? getInsightsNumber(item, "saves") ?? null;
 }
 
 export function getShares(item: IgMediaItem): number | null {
-  return getComputedNumber(item, "shares") ?? getInsightsNumber(item, "shares") ?? null;
+  const computed = getComputedNumber(item, "shares");
+  if (computed !== null) return computed;
+  const hasInsights = getComputedBool(item, "has_insights");
+  if (hasInsights) return null;
+  return getInsightsNumber(item, "shares") ?? null;
 }
 
 export function getReach(item: IgMediaItem): number | null {
-  return getComputedNumber(item, "reach") ?? getInsightsNumber(item, "reach") ?? null;
+  const computed = getComputedNumber(item, "reach");
+  if (computed !== null) return computed;
+  const hasInsights = getComputedBool(item, "has_insights");
+  if (hasInsights) return null;
+  return getInsightsNumber(item, "reach") ?? null;
 }
 
 export function getViews(item: IgMediaItem): number | null {
-  return getComputedNumber(item, "views") ?? getInsightsNumber(item, "views") ?? null;
+  const computed = getComputedNumber(item, "views");
+  if (computed !== null) return computed;
+  const hasInsights = getComputedBool(item, "has_insights");
+  if (hasInsights) return null;
+  return getInsightsNumber(item, "views") ?? null;
 }
 
 export function getEngagement(item: IgMediaItem): number {
@@ -91,4 +107,3 @@ export function formatNumberOrDash(value: number | null): string {
   if (value === null) return "--";
   return value.toLocaleString();
 }
-

@@ -358,7 +358,13 @@ export default function AdvancedAnalysis() {
             </thead>
             <tbody>
               {sorted.slice(0, 200).map((item, idx: number) => (
-                <tr key={item.id}>
+                <tr
+                  key={item.id}
+                  className="cursor-pointer hover:bg-secondary/40 transition-colors"
+                  onClick={() => {
+                    if (item.permalink) window.open(item.permalink, "_blank", "noopener,noreferrer");
+                  }}
+                >
                   <td className="font-bold text-muted-foreground">{idx + 1}</td>
                   <td>
                     <a href={item.permalink} target="_blank" rel="noopener noreferrer">

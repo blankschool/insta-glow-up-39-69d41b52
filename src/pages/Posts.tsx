@@ -406,7 +406,13 @@ const Posts = () => {
                   </thead>
                   <tbody>
                     {displayedPosts.map((post, idx: number) => (
-                      <tr key={post.id}>
+                      <tr
+                        key={post.id}
+                        className="cursor-pointer hover:bg-secondary/40 transition-colors"
+                        onClick={() => {
+                          if (post.permalink) window.open(post.permalink, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
                         <td className="font-bold text-muted-foreground">{idx + 1}</td>
                         <td>
                           <a href={post.permalink} target="_blank" rel="noopener noreferrer">
@@ -424,7 +430,15 @@ const Posts = () => {
                           </a>
                         </td>
                         <td className="max-w-[200px] truncate text-xs">
-                          {post.caption?.slice(0, 60) || '-'}
+                          <a
+                            href={post.permalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {post.caption?.slice(0, 60) || '-'}
+                          </a>
                         </td>
                         <td>
                           <span className="tag flex items-center gap-1">

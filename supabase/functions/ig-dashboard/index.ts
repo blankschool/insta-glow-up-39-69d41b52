@@ -168,11 +168,11 @@ function parseInsightsResponse(json: unknown): Record<string, number> {
 function normalizeMediaInsights(raw: Record<string, number>): Record<string, number> {
   // Normalize metric name changes across Graph API versions.
   // - "saved" vs "saves"
-  // - "plays" / "video_views" -> "views" (post-level "media views")
+  // - "plays" / "video_views" / "impressions" -> "views" (canonical field for display)
   // Keep canonical keys used by the frontend: views, reach, saved, shares, total_interactions, engagement.
-  const saved = raw.saved ?? raw.saves ?? raw.carousel_album_saved;
-  const views = raw.views ?? raw.video_views ?? raw.plays ?? raw.carousel_album_video_views;
-  const reach = raw.reach ?? raw.carousel_album_reach;
+  const saved = raw.saved ?? raw.saves;
+  const views = raw.views ?? raw.video_views ?? raw.plays ?? raw.impressions;
+  const reach = raw.reach;
   const shares = raw.shares;
   const total_interactions =
     raw.total_interactions ??
@@ -203,36 +203,35 @@ async function fetchMediaInsights(
   const candidates: string[] = [];
 
   if (isCarousel) {
-    // carrossel tem métricas específicas em vários casos
+    // Use only metrics that are widely supported by the API for media insights.
     candidates.push(
-      "carousel_album_reach,carousel_album_saved,carousel_album_video_views,shares,total_interactions",
-      "carousel_album_reach,carousel_album_saved,carousel_album_video_views",
-      "carousel_album_reach,carousel_album_saved",
-      "reach,saved,shares,total_interactions",
+      "impressions,reach,saved,shares,total_interactions",
+      "impressions,reach,saved,total_interactions",
+      "reach,saved,total_interactions",
       "reach,saved",
     );
   } else if (isReel) {
-    // reels: em alguns cenários vem views, em outros plays
+    // reels: "plays" may be supported depending on API/account; keep fallbacks.
     candidates.push(
-      "views,reach,saved,shares,total_interactions",
       "plays,reach,saved,shares,total_interactions",
-      "views,reach,saved",
+      "impressions,reach,saved,shares,total_interactions",
       "plays,reach,saved",
+      "impressions,reach,saved",
       "reach,saved",
     );
   } else if (mediaType === "VIDEO") {
-    // vídeo feed: pode retornar video_views e/ou views dependendo da versão/conta
+    // vídeo feed: "video_views" is the common metric; use impressions as a fallback.
     candidates.push(
-      "video_views,views,reach,saved,shares,total_interactions",
       "video_views,reach,saved,shares,total_interactions",
-      "views,reach,saved,shares,total_interactions",
+      "video_views,reach,saved,total_interactions",
+      "impressions,reach,saved,shares,total_interactions",
       "video_views,reach,saved",
-      "views,reach,saved",
+      "impressions,reach,saved",
       "reach,saved",
     );
   } else {
-    // imagem
-    candidates.push("reach,saved,shares,total_interactions", "reach,saved");
+    // imagem (no video views; use impressions as an exposure proxy)
+    candidates.push("impressions,reach,saved,total_interactions", "impressions,reach,saved", "reach,saved");
   }
 
   for (const metric of candidates) {
@@ -292,9 +291,9 @@ function computeMediaMetrics(
   const likes = media.like_count ?? 0;
   const comments = media.comments_count ?? 0;
 
-  const savesPick = pickMetric(insightsRaw, ["saved", "saves", "carousel_album_saved"]);
-  const reachPick = pickMetric(insightsRaw, ["reach", "carousel_album_reach"]);
-  const viewsPick = pickMetric(insightsRaw, ["views", "plays", "video_views", "carousel_album_video_views"]);
+  const savesPick = pickMetric(insightsRaw, ["saved", "saves"]);
+  const reachPick = pickMetric(insightsRaw, ["reach"]);
+  const viewsPick = pickMetric(insightsRaw, ["views", "plays", "video_views", "impressions"]);
   const sharesPick = pickMetric(insightsRaw, ["shares"]);
   const totalInteractionsPick = pickMetric(insightsRaw, ["total_interactions", "engagement"]);
 
@@ -328,16 +327,15 @@ function computeMediaMetrics(
 
   const hasInsights = Object.keys(insightsRaw).length > 0;
 
-  const normalizedInsights = {
-    ...insightsRaw,
-    saved: saves ?? 0,
-    saves: (insightsRaw.saves ?? saves ?? 0) as number,
-    reach: reach ?? 0,
-    views: views ?? 0,
-    shares: shares ?? 0,
-    total_interactions: totalInteractionsPick.value ?? 0,
-    engagement,
-  };
+  const normalizedInsights: Record<string, number> = { ...insightsRaw, engagement };
+  if (typeof reach === "number") normalizedInsights.reach = reach;
+  if (typeof saves === "number") {
+    normalizedInsights.saved = saves;
+    normalizedInsights.saves = (insightsRaw.saves ?? saves) as number;
+  }
+  if (typeof views === "number") normalizedInsights.views = views;
+  if (typeof shares === "number") normalizedInsights.shares = shares;
+  if (typeof totalInteractionsPick.value === "number") normalizedInsights.total_interactions = totalInteractionsPick.value;
 
   const computed: ComputedMetrics = {
     likes,

@@ -21,6 +21,7 @@ import {
   Trophy,
   Target,
   Eye,
+  TrendingUp,
   Clock,
   Loader2,
   AlertCircle
@@ -123,6 +124,8 @@ const Overview = () => {
     ...(totalSaves ? [{ name: 'Salvos', value: totalSaves, color: 'hsl(var(--foreground) / 0.55)' }] : []),
     ...(totalShares ? [{ name: 'Compart.', value: totalShares, color: 'hsl(var(--foreground) / 0.35)' }] : []),
   ] : [];
+
+  const topByScore = [...media].sort((a, b) => getScore(b) - getScore(a)).slice(0, 6);
 
   const recentPostsPerformance = media.slice(0, 7).map((item, index) => ({
     post: `Post ${index + 1}`,
@@ -366,6 +369,43 @@ const Overview = () => {
                     <Grid3X3 className="w-6 h-6 text-muted-foreground" />
                   </div>
                 )}
+              </a>
+            ))}
+          </div>
+        </ChartCard>
+      )}
+
+      {topByScore.length > 0 && (
+        <ChartCard title="Melhores Posts" subtitle="Top por score (clique para abrir)">
+          <div className="space-y-2">
+            {topByScore.map((item, index) => (
+              <a
+                key={item.id}
+                href={item.permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-xl border border-border/50 bg-background p-3 hover:bg-secondary/40 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                  {index + 1}
+                </div>
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-secondary">
+                  {(item.thumbnail_url || item.media_url) ? (
+                    <img
+                      src={item.thumbnail_url || item.media_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{item.caption?.slice(0, 70) || 'Post'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Score {getScore(item).toLocaleString()} • ER {formatPercent(getComputedNumber(item, 'er'))}
+                  </p>
+                </div>
               </a>
             ))}
           </div>
