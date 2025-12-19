@@ -45,6 +45,7 @@ const navGroups: NavGroup[] = [
     items: [
       { label: "Performance", href: "/performance", icon: <Activity className="h-[18px] w-[18px]" /> },
       { label: "Posts", href: "/posts", icon: <Grid3X3 className="h-[18px] w-[18px]" /> },
+      { label: "Análise Avançada", href: "/advanced", icon: <TrendingUp className="h-[18px] w-[18px]" /> },
       { label: "Stories", href: "/stories", icon: <Layers className="h-[18px] w-[18px]" /> },
       { label: "Reels", href: "/reels", icon: <Play className="h-[18px] w-[18px]" /> },
     ],

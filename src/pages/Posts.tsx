@@ -3,7 +3,8 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatNumberOrDash, formatPercent, getComputedNumber, getReach, getSaves, getScore, getShares, getViews, type IgMediaItem } from '@/utils/ig';
 import {
   Grid3X3,
   Heart,
@@ -39,7 +40,7 @@ const POSTS_PER_PAGE = 25;
 const Posts = () => {
   const { data, loading, error, refresh } = useDashboardData();
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'engagement' | 'likes' | 'comments' | 'saves' | 'reach'>('engagement');
+  const [sortBy, setSortBy] = useState<'score' | 'engagement' | 'likes' | 'comments' | 'saves' | 'shares' | 'reach' | 'views' | 'er'>('score');
   const [displayCount, setDisplayCount] = useState(POSTS_PER_PAGE);
 
   // Initial fetch already handled by react-query; reset pagination when data changes.
@@ -59,20 +60,45 @@ const Posts = () => {
 
   const exportCSV = () => {
     if (!data?.posts?.length) return;
+    const items = data.posts;
     
-    const headers = ['ID', 'Caption', 'Type', 'Date', 'Likes', 'Comments', 'Saves', 'Shares', 'Reach', 'Views', 'Engagement'];
-    const rows = data.posts.map((p: any) => [
+    const headers = [
+      'id',
+      'timestamp',
+      'media_type',
+      'media_product_type',
+      'permalink',
+      'likes',
+      'comments',
+      'saves',
+      'shares',
+      'reach',
+      'views',
+      'engagement',
+      'er',
+      'reach_rate',
+      'views_rate',
+      'interactions_per_1000_reach',
+      'score',
+    ];
+    const rows = items.map((p: IgMediaItem) => [
       p.id,
-      `"${(p.caption || '').slice(0, 50).replace(/"/g, '""')}"`,
-      p.media_type,
-      p.timestamp,
-      p.like_count || 0,
-      p.comments_count || 0,
-      p.insights?.saved || 0,
-      p.insights?.shares || 0,
-      p.insights?.reach || 0,
-      p.insights?.views || 0,
-      p.insights?.engagement || 0,
+      p.timestamp ?? '',
+      p.media_type ?? '',
+      p.media_product_type ?? '',
+      p.permalink ?? '',
+      p.like_count ?? 0,
+      p.comments_count ?? 0,
+      getSaves(p) ?? '',
+      getShares(p) ?? '',
+      getReach(p) ?? '',
+      getViews(p) ?? '',
+      getComputedNumber(p, 'engagement') ?? p.insights?.engagement ?? '',
+      getComputedNumber(p, 'er') ?? '',
+      getComputedNumber(p, 'reach_rate') ?? '',
+      getComputedNumber(p, 'views_rate') ?? '',
+      getComputedNumber(p, 'interactions_per_1000_reach') ?? '',
+      getScore(p),
     ]);
     
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -84,18 +110,23 @@ const Posts = () => {
     a.click();
   };
 
-  const posts = data?.posts || [];
+  const posts = data?.posts ?? [];
   
   // Aggregate metrics
-  const totalLikes = posts.reduce((sum: number, p: any) => sum + (p.like_count || 0), 0);
-  const totalComments = posts.reduce((sum: number, p: any) => sum + (p.comments_count || 0), 0);
-  const totalSaves = posts.reduce((sum: number, p: any) => sum + (p.insights?.saved || 0), 0);
-  const totalShares = posts.reduce((sum: number, p: any) => sum + (p.insights?.shares || 0), 0);
-  const totalReach = posts.reduce((sum: number, p: any) => sum + (p.insights?.reach || 0), 0);
-  const totalViews = posts.reduce((sum: number, p: any) => sum + (p.insights?.views || 0), 0);
+  const totalLikes = posts.reduce((sum, p) => sum + (p.like_count || 0), 0);
+  const totalComments = posts.reduce((sum, p) => sum + (p.comments_count || 0), 0);
+  const savesValues = posts.map(getSaves).filter((v): v is number => typeof v === 'number');
+  const sharesValues = posts.map(getShares).filter((v): v is number => typeof v === 'number');
+  const reachValues = posts.map(getReach).filter((v): v is number => typeof v === 'number');
+  const viewsValues = posts.map(getViews).filter((v): v is number => typeof v === 'number');
+  const totalSaves = savesValues.length > 0 ? savesValues.reduce((s, v) => s + v, 0) : null;
+  const totalShares = sharesValues.length > 0 ? sharesValues.reduce((s, v) => s + v, 0) : null;
+  const totalReach = reachValues.length > 0 ? reachValues.reduce((s, v) => s + v, 0) : null;
+  const totalViews = viewsValues.length > 0 ? viewsValues.reduce((s, v) => s + v, 0) : null;
+  const totalScore = posts.reduce((sum, p) => sum + getScore(p), 0);
 
   // Media type distribution
-  const typeCount = posts.reduce((acc: any, p: any) => {
+  const typeCount = posts.reduce<Record<string, number>>((acc, p) => {
     const type = p.media_type || 'IMAGE';
     acc[type] = (acc[type] || 0) + 1;
     return acc;
@@ -108,22 +139,18 @@ const Posts = () => {
   ].filter(d => d.value > 0);
 
   // Sort posts
-  const sortedPosts = [...posts].sort((a: any, b: any) => {
-    switch (sortBy) {
-      case 'likes':
-        return (b.like_count || 0) - (a.like_count || 0);
-      case 'comments':
-        return (b.comments_count || 0) - (a.comments_count || 0);
-      case 'saves':
-        return (b.insights?.saved || 0) - (a.insights?.saved || 0);
-      case 'reach':
-        return (b.insights?.reach || 0) - (a.insights?.reach || 0);
-      case 'engagement':
-      default:
-        const engA = (a.like_count || 0) + (a.comments_count || 0) + (a.insights?.saved || 0);
-        const engB = (b.like_count || 0) + (b.comments_count || 0) + (b.insights?.saved || 0);
-        return engB - engA;
-    }
+  const sortedPosts = [...posts].sort((a, b) => {
+    if (sortBy === 'score') return getScore(b) - getScore(a);
+    if (sortBy === 'likes') return (b.like_count || 0) - (a.like_count || 0);
+    if (sortBy === 'comments') return (b.comments_count || 0) - (a.comments_count || 0);
+    if (sortBy === 'saves') return (getSaves(b) ?? -1) - (getSaves(a) ?? -1);
+    if (sortBy === 'shares') return (getShares(b) ?? -1) - (getShares(a) ?? -1);
+    if (sortBy === 'reach') return (getReach(b) ?? -1) - (getReach(a) ?? -1);
+    if (sortBy === 'views') return (getViews(b) ?? -1) - (getViews(a) ?? -1);
+    if (sortBy === 'er') return (getComputedNumber(b, 'er') ?? -1) - (getComputedNumber(a, 'er') ?? -1);
+    const engA = getComputedNumber(a, 'engagement') ?? a.insights?.engagement ?? 0;
+    const engB = getComputedNumber(b, 'engagement') ?? b.insights?.engagement ?? 0;
+    return engB - engA;
   });
 
   // Paginated posts for display
@@ -131,11 +158,12 @@ const Posts = () => {
   const hasMorePosts = displayCount < sortedPosts.length;
 
   // Top 10 for chart
-  const top10 = sortedPosts.slice(0, 10).map((p: any, idx: number) => ({
+  const top10 = sortedPosts.slice(0, 10).map((p, idx: number) => ({
     name: `#${idx + 1}`,
     likes: p.like_count || 0,
     comments: p.comments_count || 0,
-    saves: p.insights?.saved || 0,
+    saves: getSaves(p) ?? 0,
+    score: getScore(p),
   }));
 
   const getTypeIcon = (type: string) => {
@@ -157,7 +185,7 @@ const Posts = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Posts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Análise de {posts.length.toLocaleString()} posts. Salvos/Alcance disponíveis apenas para posts recentes (não carrosséis).
+            Análise de {posts.length.toLocaleString()} posts. Rankings usam Score (ponderado) e métricas normalizadas quando disponíveis.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -213,18 +241,47 @@ const Posts = () => {
             />
             <MetricCard
               label="Salvos"
-              value={totalSaves.toLocaleString()}
+              value={formatNumberOrDash(totalSaves)}
               icon={<Bookmark className="w-4 h-4" />}
             />
             <MetricCard
               label="Compartilhados"
-              value={totalShares.toLocaleString()}
+              value={formatNumberOrDash(totalShares)}
               icon={<Share2 className="w-4 h-4" />}
             />
             <MetricCard
               label="Alcance Total"
-              value={totalReach.toLocaleString()}
+              value={formatNumberOrDash(totalReach)}
               icon={<Eye className="w-4 h-4" />}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label="Score total"
+              value={totalScore > 0 ? totalScore.toLocaleString() : '--'}
+              icon={<TrendingUp className="w-4 h-4" />}
+              tooltip="Score ponderado: likes×1 + comments×2 + saves×3 + shares×4."
+            />
+            <MetricCard
+              label="Score médio/post"
+              value={posts.length > 0 ? Math.round(totalScore / posts.length).toLocaleString() : '--'}
+              icon={<TrendingUp className="w-4 h-4" />}
+            />
+            <MetricCard
+              label="Views (total)"
+              value={formatNumberOrDash(totalViews)}
+              icon={<Eye className="w-4 h-4" />}
+            />
+            <MetricCard
+              label="ER médio"
+              value={formatPercent(
+                (() => {
+                  const vals = posts.map((p) => getComputedNumber(p, 'er')).filter((v): v is number => typeof v === 'number');
+                  return vals.length > 0 ? vals.reduce((s: number, v: number) => s + v, 0) / vals.length : null;
+                })(),
+              )}
+              icon={<TrendingUp className="w-4 h-4" />}
             />
           </div>
 
@@ -271,7 +328,7 @@ const Posts = () => {
             </ChartCard>
 
             {/* Top 10 Performance */}
-            <ChartCard title="Top 10 Posts" subtitle="Performance dos melhores posts">
+            <ChartCard title="Top 10 Posts" subtitle={`Ordenado por ${sortBy === 'score' ? 'Score' : sortBy}`}>
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={top10}>
@@ -286,8 +343,8 @@ const Posts = () => {
                         color: 'hsl(var(--foreground))'
                       }} 
                     />
-                    <Bar dataKey="likes" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} name="Curtidas" />
-                    <Bar dataKey="comments" fill="hsl(var(--muted-foreground))" radius={[2, 2, 0, 0]} name="Comentários" />
+                    <Bar dataKey="score" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} name="Score" />
+                    <Bar dataKey="likes" fill="hsl(var(--muted-foreground))" radius={[2, 2, 0, 0]} name="Curtidas" />
                     <Bar dataKey="saves" fill="hsl(var(--foreground) / 0.4)" radius={[2, 2, 0, 0]} name="Salvos" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -297,8 +354,11 @@ const Posts = () => {
 
           {/* Rankings Tabs */}
           <ChartCard title="Ranking de Posts" subtitle={`Mostrando ${displayedPosts.length} de ${sortedPosts.length} posts`}>
-            <Tabs value={sortBy} onValueChange={(v) => setSortBy(v as any)} className="w-full">
+            <Tabs value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)} className="w-full">
               <TabsList className="mb-4">
+                <TabsTrigger value="score" className="gap-1">
+                  <TrendingUp className="w-3 h-3" /> Score
+                </TabsTrigger>
                 <TabsTrigger value="engagement" className="gap-1">
                   <TrendingUp className="w-3 h-3" /> Engajamento
                 </TabsTrigger>
@@ -311,8 +371,17 @@ const Posts = () => {
                 <TabsTrigger value="saves" className="gap-1">
                   <Bookmark className="w-3 h-3" /> Salvos
                 </TabsTrigger>
+                <TabsTrigger value="shares" className="gap-1">
+                  <Share2 className="w-3 h-3" /> Shares
+                </TabsTrigger>
                 <TabsTrigger value="reach" className="gap-1">
                   <Eye className="w-3 h-3" /> Alcance
+                </TabsTrigger>
+                <TabsTrigger value="views" className="gap-1">
+                  <Eye className="w-3 h-3" /> Views
+                </TabsTrigger>
+                <TabsTrigger value="er" className="gap-1">
+                  <TrendingUp className="w-3 h-3" /> ER
                 </TabsTrigger>
               </TabsList>
 
@@ -325,6 +394,8 @@ const Posts = () => {
                       <th>Legenda</th>
                       <th>Tipo</th>
                       <th>Data</th>
+                      <th>Score</th>
+                      <th>ER</th>
                       <th>Curtidas</th>
                       <th>Comentários</th>
                       <th>Salvos</th>
@@ -334,7 +405,7 @@ const Posts = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {displayedPosts.map((post: any, idx: number) => (
+                    {displayedPosts.map((post, idx: number) => (
                       <tr key={post.id}>
                         <td className="font-bold text-muted-foreground">{idx + 1}</td>
                         <td>
@@ -364,12 +435,14 @@ const Posts = () => {
                           </span>
                         </td>
                         <td className="text-xs">{new Date(post.timestamp).toLocaleDateString('pt-BR')}</td>
+                        <td className="font-medium">{getScore(post).toLocaleString()}</td>
+                        <td>{formatPercent(getComputedNumber(post, 'er'))}</td>
                         <td className="font-medium">{(post.like_count || 0).toLocaleString()}</td>
                         <td>{(post.comments_count || 0).toLocaleString()}</td>
-                        <td>{(post.insights?.saved || 0).toLocaleString()}</td>
-                        <td>{(post.insights?.shares || 0).toLocaleString()}</td>
-                        <td>{(post.insights?.reach || 0).toLocaleString()}</td>
-                        <td>{(post.insights?.views || 0).toLocaleString()}</td>
+                        <td>{formatNumberOrDash(getSaves(post))}</td>
+                        <td>{formatNumberOrDash(getShares(post))}</td>
+                        <td>{formatNumberOrDash(getReach(post))}</td>
+                        <td>{formatNumberOrDash(getViews(post))}</td>
                       </tr>
                     ))}
                   </tbody>

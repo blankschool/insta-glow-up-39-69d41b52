@@ -56,6 +56,9 @@ type DashboardRequest = {
   businessId?: string;
   maxPosts?: number;
   maxStories?: number;
+  maxInsightsPosts?: number;
+  since?: string;
+  until?: string;
 };
 
 type InstagramProfile = {
@@ -82,6 +85,7 @@ type MediaItem = {
   like_count?: number;
   comments_count?: number;
   insights?: Record<string, number>;
+  computed?: ComputedMetrics;
 };
 
 type StoryItem = {
@@ -149,8 +153,9 @@ function parseInsightsResponse(json: unknown): Record<string, number> {
 
   const out: Record<string, number> = {};
   for (const item of data) {
-    const name = typeof item === "object" && item && "name" in item ? (item as any).name : null;
-    const values = typeof item === "object" && item && "values" in item ? (item as any).values : null;
+    const obj = typeof item === "object" && item ? (item as Record<string, unknown>) : null;
+    const name = obj && typeof obj.name === "string" ? obj.name : null;
+    const values = obj && Array.isArray(obj.values) ? obj.values : null;
     const lastValue = Array.isArray(values) && values.length > 0 ? values[values.length - 1]?.value : null;
 
     if (typeof name === "string" && typeof lastValue === "number") {
@@ -165,31 +170,24 @@ function normalizeMediaInsights(raw: Record<string, number>): Record<string, num
   // - "saved" vs "saves"
   // - "plays" / "video_views" -> "views" (post-level "media views")
   // Keep canonical keys used by the frontend: views, reach, saved, shares, total_interactions, engagement.
-
-  const saved = raw.saved ?? raw.saves ?? raw.carousel_album_saved ?? 0;
-
-  const views = raw.views ?? raw.video_views ?? raw.plays ?? raw.carousel_album_video_views ?? 0;
-
-  const reach = raw.reach ?? raw.carousel_album_reach ?? 0;
-
-  const shares = raw.shares ?? 0;
-
+  const saved = raw.saved ?? raw.saves ?? raw.carousel_album_saved;
+  const views = raw.views ?? raw.video_views ?? raw.plays ?? raw.carousel_album_video_views;
+  const reach = raw.reach ?? raw.carousel_album_reach;
+  const shares = raw.shares;
   const total_interactions =
     raw.total_interactions ??
     // Some API versions expose "engagement" at media-level; treat it as interactions when present.
-    raw.engagement ??
-    0;
+    raw.engagement;
 
   // Provide both aliases so older/newer frontends keep working.
   // Frontend uses "saved" today, but we also include "saves" for convenience.
   return {
     ...raw,
-    views,
-    reach,
-    saved,
-    saves: raw.saves ?? saved,
-    shares,
-    total_interactions,
+    ...(typeof views === "number" ? { views } : {}),
+    ...(typeof reach === "number" ? { reach } : {}),
+    ...(typeof saved === "number" ? { saved, saves: raw.saves ?? saved } : {}),
+    ...(typeof shares === "number" ? { shares } : {}),
+    ...(typeof total_interactions === "number" ? { total_interactions } : {}),
   };
 }
 
@@ -253,6 +251,117 @@ async function fetchMediaInsights(
   return {};
 }
 
+type MetricPick = { value: number | null; source: string | null };
+
+function pickMetric(raw: Record<string, number>, keys: string[]): MetricPick {
+  for (const key of keys) {
+    const value = asNumber((raw as Record<string, unknown>)[key]);
+    if (value !== null) return { value, source: key };
+  }
+  return { value: null, source: null };
+}
+
+type ComputedMetrics = {
+  likes: number;
+  comments: number;
+  saves: number | null;
+  shares: number | null;
+  reach: number | null;
+  views: number | null;
+  views_source: string | null;
+  total_interactions: number | null;
+  engagement: number;
+  score: number;
+  er: number | null;
+  reach_rate: number | null;
+  views_rate: number | null;
+  interactions_per_1000_reach: number | null;
+  has_insights: boolean;
+  is_partial: boolean;
+  missing_metrics: string[];
+};
+
+function computeMediaMetrics(
+  media: MediaItem,
+  insightsRaw: Record<string, number>,
+  followersCount: number | null,
+): {
+  normalizedInsights: Record<string, number>;
+  computed: ComputedMetrics;
+} {
+  const likes = media.like_count ?? 0;
+  const comments = media.comments_count ?? 0;
+
+  const savesPick = pickMetric(insightsRaw, ["saved", "saves", "carousel_album_saved"]);
+  const reachPick = pickMetric(insightsRaw, ["reach", "carousel_album_reach"]);
+  const viewsPick = pickMetric(insightsRaw, ["views", "plays", "video_views", "carousel_album_video_views"]);
+  const sharesPick = pickMetric(insightsRaw, ["shares"]);
+  const totalInteractionsPick = pickMetric(insightsRaw, ["total_interactions", "engagement"]);
+
+  const saves = savesPick.value;
+  const reach = reachPick.value;
+  const views = viewsPick.value;
+  const shares = sharesPick.value;
+
+  const engagement = likes + comments + (saves ?? 0) + (shares ?? 0);
+  const score = likes * 1 + comments * 2 + (saves ?? 0) * 3 + (shares ?? 0) * 4;
+
+  const followers = typeof followersCount === "number" && followersCount > 0 ? followersCount : null;
+
+  const er = followers ? (engagement / followers) * 100 : null;
+  const reachRate = followers && typeof reach === "number" ? (reach / followers) * 100 : null;
+  const viewsRate = typeof reach === "number" && reach > 0 && typeof views === "number" ? (views / reach) * 100 : null;
+  const interactionsPer1000Reach = typeof reach === "number" && reach > 0 ? (engagement / reach) * 1000 : null;
+
+  const expectsViews =
+    media.media_product_type === "REELS" ||
+    media.media_product_type === "REEL" ||
+    media.media_type === "VIDEO";
+
+  const missingMetrics = ["saves", "shares", "reach", ...(expectsViews ? ["views"] : [])].filter((k) => {
+    if (k === "saves") return saves === null;
+    if (k === "shares") return shares === null;
+    if (k === "reach") return reach === null;
+    if (k === "views") return views === null;
+    return false;
+  });
+
+  const hasInsights = Object.keys(insightsRaw).length > 0;
+
+  const normalizedInsights = {
+    ...insightsRaw,
+    saved: saves ?? 0,
+    saves: (insightsRaw.saves ?? saves ?? 0) as number,
+    reach: reach ?? 0,
+    views: views ?? 0,
+    shares: shares ?? 0,
+    total_interactions: totalInteractionsPick.value ?? 0,
+    engagement,
+  };
+
+  const computed: ComputedMetrics = {
+    likes,
+    comments,
+    saves,
+    shares,
+    reach,
+    views,
+    views_source: viewsPick.source,
+    total_interactions: totalInteractionsPick.value,
+    engagement,
+    score,
+    er,
+    reach_rate: reachRate,
+    views_rate: viewsRate,
+    interactions_per_1000_reach: interactionsPer1000Reach,
+    has_insights: hasInsights,
+    is_partial: missingMetrics.length > 0,
+    missing_metrics: missingMetrics,
+  };
+
+  return { normalizedInsights, computed };
+}
+
 async function fetchStoryInsights(accessToken: string, storyId: string): Promise<Record<string, number>> {
   try {
     const json = await graphGet(`/${storyId}/insights`, accessToken, {
@@ -286,8 +395,14 @@ serve(async (req) => {
 
     const maxPosts = typeof body.maxPosts === "number" ? Math.max(1, Math.min(2000, body.maxPosts)) : 500;
     const maxStories = typeof body.maxStories === "number" ? Math.max(1, Math.min(50, body.maxStories)) : 25;
+    const maxInsightsPosts =
+      typeof body.maxInsightsPosts === "number"
+        ? Math.max(0, Math.min(maxPosts, Math.floor(body.maxInsightsPosts)))
+        : 200;
 
-    console.log(`[ig-dashboard] Fetching data for businessId=${businessId}, maxPosts=${maxPosts}`);
+    console.log(
+      `[ig-dashboard] Fetching data for businessId=${businessId}, maxPosts=${maxPosts}, maxInsightsPosts=${maxInsightsPosts}`,
+    );
 
     const profileJson = await graphGet(`/${businessId}`, accessToken, {
       fields: "id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url,website",
@@ -329,7 +444,7 @@ serve(async (req) => {
       limit: String(maxStories),
     });
     const storiesData = (storiesJson as { data?: unknown }).data;
-    const storyItems: StoryItem[] = Array.isArray(storiesData) ? (storiesData as any) : [];
+    const storyItems: StoryItem[] = Array.isArray(storiesData) ? (storiesData as StoryItem[]) : [];
 
     const INSIGHTS_BATCH_SIZE = 50;
     const mediaWithInsights: MediaItem[] = [];
@@ -338,29 +453,17 @@ serve(async (req) => {
       const batch = mediaItems.slice(i, i + INSIGHTS_BATCH_SIZE);
 
       const batchResults = await Promise.all(
-        batch.map(async (m) => {
-          const insights = await fetchMediaInsights(accessToken, m.id, m.media_type, m.media_product_type);
+        batch.map(async (m, j) => {
+          const absoluteIndex = i + j;
+          const insights =
+            absoluteIndex < maxInsightsPosts
+              ? await fetchMediaInsights(accessToken, m.id, m.media_type, m.media_product_type)
+              : {};
 
-          const saved = insights.saved ?? 0;
-          const reach = insights.reach ?? 0;
-          const views = insights.views ?? 0;
-          const shares = insights.shares ?? 0;
-          const totalInteractions = insights.total_interactions ?? 0;
+          const followersCount = asNumber(profile.followers_count);
+          const { normalizedInsights, computed } = computeMediaMetrics(m, insights, followersCount);
 
-          const engagement = (m.like_count ?? 0) + (m.comments_count ?? 0) + saved;
-
-          return {
-            ...m,
-            insights: {
-              ...insights,
-              saved,
-              reach,
-              views,
-              shares,
-              total_interactions: totalInteractions,
-              engagement,
-            },
-          };
+          return { ...m, insights: normalizedInsights, computed };
         }),
       );
 
@@ -418,7 +521,7 @@ serve(async (req) => {
     }
 
     // Demographics e online_followers mantidos como estavam, sem mexer aqui
-    let demographics: Record<string, unknown> = {};
+    const demographics: Record<string, unknown> = {};
     const breakdownTypes = ["age", "gender", "country", "city"];
 
     for (const breakdownType of breakdownTypes) {
@@ -489,6 +592,19 @@ serve(async (req) => {
       }
     }
 
+    const messages: string[] = [];
+    if (mediaItems.length > maxInsightsPosts) {
+      messages.push(`INSIGHTS_LIMIT: Buscamos insights detalhados apenas para os ${maxInsightsPosts} posts mais recentes.`);
+    }
+    if (Object.keys(demographics).length === 0) {
+      messages.push("DEMOGRAPHICS_EMPTY: Demografia indisponível para esta conta/permissões.");
+    }
+
+    const partialCount = mediaWithInsights.filter((m) => m.computed?.has_insights === false || m.computed?.is_partial === true).length;
+    if (partialCount > 0) {
+      messages.push(`PARTIAL_METRICS: ${partialCount} itens com métricas parciais/indisponíveis.`);
+    }
+
     let onlineFollowers: Record<string, number> = {};
     try {
       const onlineJson = await graphGet(`/${businessId}/insights`, accessToken, {
@@ -516,6 +632,22 @@ serve(async (req) => {
 
     const duration = Date.now() - startedAt;
 
+    const isReel = (m: MediaItem) => m.media_product_type === "REELS" || m.media_product_type === "REEL";
+
+    const byScoreDesc = (a: MediaItem, b: MediaItem) => (b.computed?.score ?? -1) - (a.computed?.score ?? -1);
+
+    const byReachDesc = (a: MediaItem, b: MediaItem) => (b.computed?.reach ?? -1) - (a.computed?.reach ?? -1);
+
+    const byViewsDesc = (a: MediaItem, b: MediaItem) => (b.computed?.views ?? -1) - (a.computed?.views ?? -1);
+
+    const nonReels = mediaWithInsights.filter((m) => !isReel(m));
+    const reelsOnly = mediaWithInsights.filter((m) => isReel(m));
+
+    const top_posts_by_score = [...nonReels].sort(byScoreDesc).slice(0, 20);
+    const top_posts_by_reach = [...nonReels].sort(byReachDesc).slice(0, 20);
+    const top_reels_by_views = [...reelsOnly].sort(byViewsDesc).slice(0, 20);
+    const top_reels_by_score = [...reelsOnly].sort(byScoreDesc).slice(0, 20);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -527,12 +659,16 @@ serve(async (req) => {
         media: mediaWithInsights,
         posts: mediaWithInsights,
         total_posts: mediaWithInsights.length,
+        top_posts_by_score,
+        top_posts_by_reach,
+        top_reels_by_views,
+        top_reels_by_score,
         media_type_distribution: mediaTypeDistribution,
         stories: storiesWithInsights,
         stories_aggregate: storiesAggregate,
         demographics,
         online_followers: onlineFollowers,
-        messages: [],
+        messages,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json", "X-Request-Id": requestId },

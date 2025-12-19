@@ -1,6 +1,7 @@
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
+import { formatNumberOrDash, getViews, isReel } from '@/utils/ig';
 import { 
   Play, 
   Eye,
@@ -33,19 +34,26 @@ const Reels = () => {
   }
 
   // Filter reels/videos from media
-  const reels = media.filter(item => item.media_type === 'VIDEO' || item.media_type === 'REELS');
+  const reels = media.filter((item) => isReel(item));
   const hasReels = reels.length > 0;
 
   // Calculate metrics from real data only
   const totalLikes = reels.reduce((sum, reel) => sum + (reel.like_count || 0), 0);
   const totalComments = reels.reduce((sum, reel) => sum + (reel.comments_count || 0), 0);
+  const viewsValues = reels.map((r) => getViews(r)).filter((v): v is number => typeof v === 'number');
+  const totalViews = viewsValues.length > 0 ? viewsValues.reduce((s, v) => s + v, 0) : null;
+
+  const rankedByViews = data?.top_reels_by_views?.length ? data.top_reels_by_views : reels;
+  const topReels = rankedByViews.slice(0, 10);
 
   // Real performance data from API
-  const reelsPerformance = reels.slice(0, 10).map((reel, index) => ({
+  const reelsPerformance = topReels.map((reel, index) => ({
     name: `Reel ${index + 1}`,
+    views: getViews(reel) ?? 0,
     likes: reel.like_count || 0,
     comments: reel.comments_count || 0,
   }));
+  const hasViews = reelsPerformance.some((r) => r.views > 0);
 
   return (
     <div className="space-y-6">
@@ -78,9 +86,9 @@ const Reels = () => {
         />
         <MetricCard
           label="Visualizações"
-          value="--"
+          value={formatNumberOrDash(totalViews)}
           icon={<Eye className="w-4 h-4" />}
-          tooltip="Visualizações requerem permissões adicionais da API do Instagram."
+          tooltip="Views/plays/video_views normalizados quando disponíveis. Para alguns formatos/períodos, pode ficar indisponível."
         />
       </div>
 
@@ -99,7 +107,7 @@ const Reels = () => {
       ) : (
         <>
           {/* Performance Chart */}
-          <ChartCard title="Performance dos Reels" subtitle="Engajamento por reel">
+          <ChartCard title="Performance dos Reels" subtitle={hasViews ? "Views e interações (top reels)" : "Interações (top reels)"}>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={reelsPerformance}>
@@ -114,6 +122,7 @@ const Reels = () => {
                     }} 
                   />
                   <Legend />
+                  {hasViews && <Bar dataKey="views" fill="hsl(var(--foreground) / 0.35)" radius={[4, 4, 0, 0]} name="Views" />}
                   <Bar dataKey="likes" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Curtidas" />
                   <Bar dataKey="comments" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} name="Comentários" />
                 </BarChart>
@@ -122,9 +131,9 @@ const Reels = () => {
           </ChartCard>
 
           {/* Top Reels */}
-          <ChartCard title="Top Reels" subtitle="Melhores performances">
+          <ChartCard title="Top Reels" subtitle={hasViews ? "Ordenado por views" : "Ordenado por relevância"}>
             <div className="space-y-3">
-              {reels.slice(0, 5).map((reel, index) => (
+              {topReels.slice(0, 5).map((reel, index) => (
                 <a
                   key={reel.id}
                   href={reel.permalink}
@@ -153,6 +162,12 @@ const Reels = () => {
                       {reel.caption?.slice(0, 50) || `Reel ${index + 1}`}
                     </p>
                     <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                      {getViews(reel) !== null && (
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          {getViews(reel)!.toLocaleString()}
+                        </span>
+                      )}
                       <span className="flex items-center gap-1">
                         <Heart className="w-3 h-3" />
                         {(reel.like_count || 0).toLocaleString()}

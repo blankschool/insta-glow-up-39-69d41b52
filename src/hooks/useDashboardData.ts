@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useDateRange } from '@/contexts/DateRangeContext';
+import type { IgMediaItem } from '@/utils/ig';
 
 export type IgDashboardResponse = {
   success: boolean;
@@ -9,14 +10,27 @@ export type IgDashboardResponse = {
   request_id?: string;
   snapshot_date?: string;
   provider?: string;
-  profile?: any;
-  media?: any[];
-  posts?: any[];
+  profile?: {
+    id: string;
+    username?: string;
+    name?: string;
+    followers_count?: number;
+    follows_count?: number;
+    media_count?: number;
+    profile_picture_url?: string;
+    website?: string;
+  } | null;
+  media?: IgMediaItem[];
+  posts?: IgMediaItem[];
   total_posts?: number;
-  stories?: any[];
-  stories_aggregate?: any;
-  demographics?: any;
-  online_followers?: any;
+  top_posts_by_score?: IgMediaItem[];
+  top_posts_by_reach?: IgMediaItem[];
+  top_reels_by_views?: IgMediaItem[];
+  top_reels_by_score?: IgMediaItem[];
+  stories?: unknown[];
+  stories_aggregate?: unknown;
+  demographics?: Record<string, unknown>;
+  online_followers?: Record<string, number>;
   messages?: string[];
 };
 

@@ -1,12 +1,27 @@
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { ChartCard } from '@/components/dashboard/ChartCard';
+import { useDateRange } from '@/contexts/DateRangeContext';
+import {
+  filterMediaByDateRange,
+  formatNumberOrDash,
+  formatPercent,
+  getComputedNumber,
+  getSaves,
+  getScore,
+  getShares,
+  type IgMediaItem,
+} from '@/utils/ig';
 import { 
   Users, 
   Grid3X3, 
-  Heart, 
-  MessageCircle, 
   UserPlus,
+  Bookmark,
+  Share2,
+  Trophy,
+  Target,
+  Eye,
+  Clock,
   Loader2,
   AlertCircle
 } from 'lucide-react';
@@ -25,8 +40,9 @@ import {
 
 const Overview = () => {
   const { data, loading, error } = useDashboardData();
+  const { dateRange } = useDateRange();
   const profile = data?.profile ?? null;
-  const media = data?.media ?? [];
+  const media = filterMediaByDateRange((data?.media ?? []) as IgMediaItem[], dateRange);
 
   if (loading) {
     return (
@@ -38,22 +54,79 @@ const Overview = () => {
 
   const hasData = profile || media.length > 0;
 
-  // Calculate engagement metrics from real media data only
+  // Aggregate metrics (computed when available)
   const totalLikes = media.reduce((sum, item) => sum + (item.like_count || 0), 0);
   const totalComments = media.reduce((sum, item) => sum + (item.comments_count || 0), 0);
-  const avgEngagement = media.length > 0 && profile?.followers_count
-    ? ((totalLikes + totalComments) / media.length / profile.followers_count * 100).toFixed(2)
-    : null;
+  const savesValues = media.map(getSaves).filter((v): v is number => typeof v === 'number');
+  const sharesValues = media.map(getShares).filter((v): v is number => typeof v === 'number');
+  const reachValues = media.map((m) => getComputedNumber(m, 'reach')).filter((v): v is number => typeof v === 'number');
+  const reelsViewsRateValues = media
+    .filter((m) => m.media_product_type === 'REELS' || m.media_product_type === 'REEL')
+    .map((m) => getComputedNumber(m, 'views_rate'))
+    .filter((v): v is number => typeof v === 'number');
 
-  const engagementData = totalLikes > 0 || totalComments > 0 ? [
+  const totalSaves = savesValues.length > 0 ? savesValues.reduce((s, v) => s + v, 0) : null;
+  const totalShares = sharesValues.length > 0 ? sharesValues.reduce((s, v) => s + v, 0) : null;
+
+  const scoreTotal = media.reduce((sum, item) => sum + getScore(item), 0);
+  const scoreAvg = media.length > 0 ? scoreTotal / media.length : null;
+
+  const erValues = media.map((m) => getComputedNumber(m, 'er')).filter((v): v is number => typeof v === 'number');
+  const reachRateValues = media
+    .map((m) => getComputedNumber(m, 'reach_rate'))
+    .filter((v): v is number => typeof v === 'number');
+  const interactionsPer1000Values = media
+    .map((m) => getComputedNumber(m, 'interactions_per_1000_reach'))
+    .filter((v): v is number => typeof v === 'number');
+
+  const avgEr = erValues.length > 0 ? erValues.reduce((s, v) => s + v, 0) / erValues.length : null;
+  const avgReachRate =
+    reachRateValues.length > 0 ? reachRateValues.reduce((s, v) => s + v, 0) / reachRateValues.length : null;
+  const avgViewsRateReels =
+    reelsViewsRateValues.length > 0
+      ? reelsViewsRateValues.reduce((s, v) => s + v, 0) / reelsViewsRateValues.length
+      : null;
+  const avgInteractionsPer1000 =
+    interactionsPer1000Values.length > 0
+      ? interactionsPer1000Values.reduce((s, v) => s + v, 0) / interactionsPer1000Values.length
+      : null;
+
+  const bestWindow = (() => {
+    const buckets = new Map<string, { sum: number; count: number }>();
+    for (const item of media) {
+      if (!item.timestamp) continue;
+      const dt = new Date(item.timestamp);
+      const key = `${dt.getDay()}-${dt.getHours()}`;
+      const prev = buckets.get(key) ?? { sum: 0, count: 0 };
+      prev.sum += getScore(item);
+      prev.count += 1;
+      buckets.set(key, prev);
+    }
+    let best: { day: number; hour: number; avg: number; count: number } | null = null;
+    for (const [key, v] of buckets) {
+      if (v.count === 0) continue;
+      const avg = v.sum / v.count;
+      const [dayStr, hourStr] = key.split('-');
+      const day = Number(dayStr);
+      const hour = Number(hourStr);
+      if (!best || avg > best.avg) best = { day, hour, avg, count: v.count };
+    }
+    return best;
+  })();
+
+  const weekdayShortPt = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const bestWindowLabel = bestWindow ? `${weekdayShortPt[bestWindow.day]} ${String(bestWindow.hour).padStart(2, '0')}h` : '--';
+
+  const engagementData = totalLikes > 0 || totalComments > 0 || (totalSaves ?? 0) > 0 || (totalShares ?? 0) > 0 ? [
     { name: 'Curtidas', value: totalLikes, color: 'hsl(var(--primary))' },
     { name: 'Comentários', value: totalComments, color: 'hsl(var(--muted-foreground))' },
+    ...(totalSaves ? [{ name: 'Salvos', value: totalSaves, color: 'hsl(var(--foreground) / 0.55)' }] : []),
+    ...(totalShares ? [{ name: 'Compart.', value: totalShares, color: 'hsl(var(--foreground) / 0.35)' }] : []),
   ] : [];
 
   const recentPostsPerformance = media.slice(0, 7).map((item, index) => ({
     post: `Post ${index + 1}`,
-    likes: item.like_count || 0,
-    comments: item.comments_count || 0,
+    score: getScore(item),
   }));
 
   if (!hasData) {
@@ -95,7 +168,7 @@ const Overview = () => {
       </section>
 
       {/* Main KPIs - Real data only */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         <MetricCard
           label="Seguidores"
           value={profile?.followers_count?.toLocaleString() || '--'}
@@ -112,10 +185,68 @@ const Overview = () => {
           icon={<Grid3X3 className="w-4 h-4" />}
         />
         <MetricCard
-          label="Engajamento"
-          value={avgEngagement ? `${avgEngagement}%` : '--'}
-          icon={<Heart className="w-4 h-4" />}
-          tooltip="Taxa de engajamento calculada com base nas interações dos posts carregados."
+          label="ER médio"
+          value={formatPercent(avgEr)}
+          icon={<Target className="w-4 h-4" />}
+          tooltip="ER (Engagement Rate) médio. Fórmula: engagement ÷ seguidores × 100. Engagement = likes + comments + saves + shares (quando disponível)."
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+        <MetricCard
+          label="Reach rate médio"
+          value={formatPercent(avgReachRate)}
+          icon={<Eye className="w-4 h-4" />}
+          tooltip="Reach rate médio. Fórmula: reach ÷ seguidores × 100. Útil para comparar eficiência de distribuição."
+        />
+        <MetricCard
+          label="Views rate (reels)"
+          value={formatPercent(avgViewsRateReels)}
+          icon={<Eye className="w-4 h-4" />}
+          tooltip="Views rate médio (apenas reels com views e reach). Fórmula: views ÷ reach × 100. Se faltar views/reach, fica indisponível."
+        />
+        <MetricCard
+          label="Interações / 1.000 alcance"
+          value={avgInteractionsPer1000 === null ? '--' : Math.round(avgInteractionsPer1000).toLocaleString()}
+          icon={<TrendingUp className="w-4 h-4" />}
+          tooltip="Eficiência de interação por alcance. Fórmula: engagement ÷ reach × 1.000."
+        />
+        <MetricCard
+          label="Score médio/post"
+          value={scoreAvg === null ? '--' : Math.round(scoreAvg).toLocaleString()}
+          icon={<Trophy className="w-4 h-4" />}
+          tooltip="Score ponderado médio. Fórmula: likes×1 + comments×2 + saves×3 + shares×4."
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+        <MetricCard
+          label="Score total"
+          value={scoreTotal > 0 ? Math.round(scoreTotal).toLocaleString() : '--'}
+          icon={<Trophy className="w-4 h-4" />}
+          tooltip="Score ponderado total do período. Fórmula: likes×1 + comments×2 + saves×3 + shares×4."
+        />
+        <MetricCard
+          label="Salvos (total)"
+          value={formatNumberOrDash(totalSaves)}
+          icon={<Bookmark className="w-4 h-4" />}
+          tooltip="Soma de saves normalizados (saved/saves e variações). Se a API não fornecer, fica indisponível."
+        />
+        <MetricCard
+          label="Compartilhamentos (total)"
+          value={formatNumberOrDash(totalShares)}
+          icon={<Share2 className="w-4 h-4" />}
+          tooltip="Soma de shares. Pode não estar disponível para todo tipo de mídia/conta."
+        />
+        <MetricCard
+          label="Melhor horário (score)"
+          value={bestWindowLabel}
+          icon={<Clock className="w-4 h-4" />}
+          tooltip={
+            bestWindow
+              ? `Maior score médio por dia/hora com base nos posts do período (n=${bestWindow.count}, score médio ${bestWindow.avg.toFixed(1)}).`
+              : 'Sem dados suficientes para estimar.'
+          }
         />
       </div>
 
@@ -173,8 +304,8 @@ const Overview = () => {
         )}
 
         {/* Recent Posts Performance */}
-        {recentPostsPerformance.length > 0 && recentPostsPerformance.some(p => p.likes > 0 || p.comments > 0) ? (
-          <ChartCard title="Performance dos Posts Recentes" subtitle="Últimos posts">
+        {recentPostsPerformance.length > 0 && recentPostsPerformance.some(p => p.score > 0) ? (
+          <ChartCard title="Performance dos Posts Recentes" subtitle="Score dos últimos posts">
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={recentPostsPerformance}>
@@ -188,8 +319,7 @@ const Overview = () => {
                       borderRadius: '8px'
                     }} 
                   />
-                  <Bar dataKey="likes" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Curtidas" />
-                  <Bar dataKey="comments" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} name="Comentários" />
+                  <Bar dataKey="score" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Score" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -203,6 +333,15 @@ const Overview = () => {
           </ChartCard>
         )}
       </div>
+
+      {data?.messages && data.messages.length > 0 && (
+        <div className="p-4 bg-secondary/50 rounded-xl border border-border">
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {data.messages.join(' • ')}
+          </p>
+        </div>
+      )}
 
       {/* Recent Posts Preview */}
       {media.length > 0 && (

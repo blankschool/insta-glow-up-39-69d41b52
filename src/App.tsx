@@ -19,6 +19,7 @@ import Demographics from "./pages/Demographics";
 import OnlineFollowers from "./pages/OnlineFollowers";
 import Reels from "./pages/Reels";
 import Profile from "./pages/Profile";
+import AdvancedAnalysis from "./pages/AdvancedAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/overview" element={<Overview />} />
               <Route path="/performance" element={<Performance />} />
               <Route path="/posts" element={<Posts />} />
+              <Route path="/advanced" element={<AdvancedAnalysis />} />
               <Route path="/stories" element={<Stories />} />
               <Route path="/demographics" element={<Demographics />} />
               <Route path="/online" element={<OnlineFollowers />} />
