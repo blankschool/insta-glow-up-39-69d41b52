@@ -15,7 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-const FACEBOOK_APP_ID = '1159498662342560';
+const FACEBOOK_APP_ID = '698718192521096';
 const REDIRECT_URI = 'https://insta-glow-up-39.lovable.app/auth/callback';
 const SCOPES = [
   'instagram_basic',
