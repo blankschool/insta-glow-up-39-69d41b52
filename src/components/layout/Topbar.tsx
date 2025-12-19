@@ -1,12 +1,14 @@
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useDateRange } from '@/contexts/DateRangeContext';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTheme } from 'next-themes';
 
 export function Topbar() {
   const { data, loading, refresh } = useDashboardData();
   const { dateRange, setDateRange } = useDateRange();
+  const { theme, setTheme } = useTheme();
   const profile = data?.profile ?? null;
 
   return (
@@ -33,11 +35,25 @@ export function Topbar() {
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <DateRangePicker 
           date={dateRange} 
           onDateChange={setDateRange} 
         />
+        
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="h-9 w-9"
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
+        </Button>
+
         <Button 
           variant="ghost" 
           size="icon" 
