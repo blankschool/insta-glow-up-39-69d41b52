@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatNumberOrDash, formatPercent, getComputedNumber, getReach, getSaves, getViews } from "@/utils/ig";
 import { Grid2X2, Search, Play, Clock, Image } from "lucide-react";
+import { SortToggle, SortDropdown, type SortOrder } from "@/components/ui/SortToggle";
 import {
   LineChart,
   Line,
@@ -42,6 +43,12 @@ export default function Overview() {
   
   // Apply filters to media
   const media = useFilteredMedia(allMedia);
+
+  // Sort states
+  const [daySort, setDaySort] = useState<SortOrder>("desc");
+  const [topContentSort, setTopContentSort] = useState<SortOrder>("desc");
+  const [topContentSortBy, setTopContentSortBy] = useState<"er" | "reach" | "likes">("er");
+  const [engagementSort, setEngagementSort] = useState<SortOrder>("desc");
 
   // Debug logging
   console.log(`[Overview] All media: ${allMedia.length}, Filtered: ${media.length}`);
@@ -99,7 +106,7 @@ export default function Overview() {
       }));
   }, [media]);
 
-  // Performance by day of week
+  // Performance by day of week (with sorting)
   const dayData = useMemo(() => {
     const buckets = Array.from({ length: 7 }, () => 0);
     for (const item of media) {
@@ -108,23 +115,53 @@ export default function Overview() {
       const reach = getReach(item) ?? 0;
       buckets[dt.getDay()] += reach;
     }
-    return buckets.map((value, idx) => ({
+    const rawData = buckets.map((value, idx) => ({
       day: dayLabels[idx],
       dayFull: dayLabelsFull[idx],
       value,
+      originalIndex: idx,
     }));
-  }, [media]);
 
-  // Top content by engagement rate (clickable)
+    // Sort based on preference
+    const sorted = [...rawData].sort((a, b) => 
+      daySort === "desc" ? b.value - a.value : a.value - b.value
+    );
+    return sorted;
+  }, [media, daySort]);
+
+  // Top content with sorting
   const topContent = useMemo(() => {
     return [...media]
       .map((item) => ({
         item,
         er: getComputedNumber(item, "er") ?? 0,
+        reach: getReach(item) ?? 0,
+        likes: item.like_count ?? 0,
       }))
-      .sort((a, b) => b.er - a.er)
+      .sort((a, b) => {
+        const aVal = a[topContentSortBy];
+        const bVal = b[topContentSortBy];
+        return topContentSort === "desc" ? bVal - aVal : aVal - bVal;
+      })
       .slice(0, 4);
-  }, [media]);
+  }, [media, topContentSort, topContentSortBy]);
+
+  // Engagement breakdown with sorting
+  const engagementData = useMemo(() => {
+    const feedPosts = media.filter(m => m.media_type === "IMAGE" || m.media_type === "CAROUSEL_ALBUM");
+    const reels = media.filter(m => m.media_product_type === "REELS" || m.media_product_type === "REEL");
+    
+    const feedEngagement = feedPosts.reduce((sum, item) => sum + (item.like_count ?? 0) + (item.comments_count ?? 0), 0);
+    const reelsEngagement = reels.reduce((sum, item) => sum + (item.like_count ?? 0) + (item.comments_count ?? 0), 0);
+    const totalEngagement = feedEngagement + reelsEngagement;
+    
+    const items = [
+      { type: "FEED", value: feedEngagement, percentage: totalEngagement > 0 ? (feedEngagement / totalEngagement) * 100 : 50 },
+      { type: "REELS", value: reelsEngagement, percentage: totalEngagement > 0 ? (reelsEngagement / totalEngagement) * 100 : 50 },
+    ];
+
+    return items.sort((a, b) => engagementSort === "desc" ? b.value - a.value : a.value - b.value);
+  }, [media, engagementSort]);
 
   if (loading) {
     return (
@@ -272,7 +309,13 @@ export default function Overview() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Performance By Day Of Week */}
           <div className="card">
-            <h3 className="card-title">Performance By Day Of Week</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="card-title">Performance By Day Of Week</h3>
+              <SortToggle 
+                sortOrder={daySort} 
+                onToggle={() => setDaySort(o => o === "desc" ? "asc" : "desc")} 
+              />
+            </div>
             <div className="h-52">
               {dayData.some((d) => d.value > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -319,51 +362,29 @@ export default function Overview() {
 
           {/* Engagement Breakdown */}
           <div className="card">
-            <h3 className="card-title">Engagement Breakdown</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="card-title">Engagement Breakdown</h3>
+              <SortToggle 
+                sortOrder={engagementSort} 
+                onToggle={() => setEngagementSort(o => o === "desc" ? "asc" : "desc")} 
+              />
+            </div>
             <div className="engagement-chart">
-              {(() => {
-                // Calculate real engagement breakdown
-                const feedPosts = media.filter(m => m.media_type === "IMAGE" || m.media_type === "CAROUSEL_ALBUM");
-                const reels = media.filter(m => m.media_product_type === "REELS" || m.media_product_type === "REEL");
-                
-                const feedEngagement = feedPosts.reduce((sum, item) => sum + (item.like_count ?? 0) + (item.comments_count ?? 0), 0);
-                const reelsEngagement = reels.reduce((sum, item) => sum + (item.like_count ?? 0) + (item.comments_count ?? 0), 0);
-                const totalEngagement = feedEngagement + reelsEngagement;
-                
-                const feedPercentage = totalEngagement > 0 ? (feedEngagement / totalEngagement) * 100 : 50;
-                const reelsPercentage = totalEngagement > 0 ? (reelsEngagement / totalEngagement) * 100 : 50;
-
-                return (
-                  <>
-                    <div className="engagement-bar-container group relative">
-                      <span className="engagement-label">FEED</span>
-                      <div className="engagement-bar-bg">
-                        <div className="engagement-bar-fill transition-all duration-500" style={{ width: `${feedPercentage}%` }} />
-                      </div>
-                      <span className="text-xs text-muted-foreground ml-2">{feedPercentage.toFixed(0)}%</span>
-                      {/* Tooltip */}
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                        <div className="bg-popover border border-border text-popover-foreground px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
-                          <span className="font-semibold">{feedEngagement.toLocaleString("pt-BR")}</span> interações
-                        </div>
-                      </div>
+              {engagementData.map((item) => (
+                <div key={item.type} className="engagement-bar-container group relative mt-3 first:mt-0">
+                  <span className="engagement-label">{item.type}</span>
+                  <div className="engagement-bar-bg">
+                    <div className="engagement-bar-fill transition-all duration-500" style={{ width: `${item.percentage}%` }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-2">{item.percentage.toFixed(0)}%</span>
+                  {/* Tooltip */}
+                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    <div className="bg-popover border border-border text-popover-foreground px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
+                      <span className="font-semibold">{item.value.toLocaleString("pt-BR")}</span> interações
                     </div>
-                    <div className="engagement-bar-container group relative mt-3">
-                      <span className="engagement-label">REELS</span>
-                      <div className="engagement-bar-bg">
-                        <div className="engagement-bar-fill transition-all duration-500" style={{ width: `${reelsPercentage}%` }} />
-                      </div>
-                      <span className="text-xs text-muted-foreground ml-2">{reelsPercentage.toFixed(0)}%</span>
-                      {/* Tooltip */}
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                        <div className="bg-popover border border-border text-popover-foreground px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
-                          <span className="font-semibold">{reelsEngagement.toLocaleString("pt-BR")}</span> interações
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
+                  </div>
+                </div>
+              ))}
               <div className="engagement-scale mt-2">
                 <span>0%</span>
                 <span>25%</span>
@@ -399,12 +420,25 @@ export default function Overview() {
 
           {/* Top Performing Content - Clickable */}
           <div className="card">
-            <h3 className="card-title">Top Performing Content</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="card-title">Top Performing Content</h3>
+              <SortDropdown
+                sortBy={topContentSortBy}
+                sortOrder={topContentSort}
+                options={[
+                  { value: "er", label: "Engajamento" },
+                  { value: "reach", label: "Alcance" },
+                  { value: "likes", label: "Curtidas" },
+                ]}
+                onSortByChange={(v) => setTopContentSortBy(v as "er" | "reach" | "likes")}
+                onSortOrderChange={() => setTopContentSort(o => o === "desc" ? "asc" : "desc")}
+              />
+            </div>
             <div className="top-content-list">
               <div className="top-content-header">
                 <span></span>
                 <span>Media Preview</span>
-                <span>Engagement rate ▼</span>
+                <span>{topContentSortBy === "er" ? "Engagement rate" : topContentSortBy === "reach" ? "Alcance" : "Curtidas"} {topContentSort === "desc" ? "▼" : "▲"}</span>
               </div>
               {topContent.map((row, index) => (
                 <Link 
@@ -422,9 +456,13 @@ export default function Overview() {
                     }
                   />
                   <div className="item-engagement">
-                    <span className="engagement-value">{formatPercent(row.er)}</span>
+                    <span className="engagement-value">
+                      {topContentSortBy === "er" ? formatPercent(row.er) : 
+                       topContentSortBy === "reach" ? formatCompact(row.reach) : 
+                       row.likes.toLocaleString("pt-BR")}
+                    </span>
                     <div className="engagement-bar-small">
-                      <div className="engagement-bar-small-fill" style={{ width: `${Math.max(10, row.er)}%` }} />
+                      <div className="engagement-bar-small-fill" style={{ width: `${Math.max(10, topContentSortBy === "er" ? row.er : 50)}%` }} />
                     </div>
                   </div>
                 </Link>

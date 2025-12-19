@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { FiltersBar } from "@/components/layout/FiltersBar";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useFilteredMedia } from "@/hooks/useFilteredMedia";
 import { formatPercent, getComputedNumber, getReach } from "@/utils/ig";
+import { SortToggle, SortDropdown, type SortOrder } from "@/components/ui/SortToggle";
 
 const dayLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
 
@@ -18,8 +19,11 @@ export default function Time() {
   const allMedia = data?.media ?? [];
   const media = useFilteredMedia(allMedia);
 
-  // Debug logging
-  console.log(`[Time] All media: ${allMedia.length}, Filtered: ${media.length}`);
+  // Sort states
+  const [daySort, setDaySort] = useState<SortOrder>("desc");
+  const [daySortBy, setDaySortBy] = useState<"reach" | "count">("reach");
+  const [monthSort, setMonthSort] = useState<SortOrder>("desc");
+  const [monthSortBy, setMonthSortBy] = useState<"reach" | "likes" | "er">("reach");
 
   const totalReach = media.reduce((sum, item) => sum + (getReach(item) ?? 0), 0);
   const totalLikes = media.reduce((sum, item) => sum + (item.like_count ?? 0), 0);
@@ -31,7 +35,7 @@ export default function Time() {
     return values.reduce((s, v) => s + v, 0) / values.length;
   }, [media]);
 
-  // Performance by day of week
+  // Performance by day of week with sorting
   const dayData = useMemo(() => {
     const buckets = Array.from({ length: 7 }, () => ({ reach: 0, count: 0 }));
     for (const item of media) {
@@ -42,15 +46,21 @@ export default function Time() {
       buckets[dt.getDay()].count += 1;
     }
     const max = Math.max(...buckets.map((b) => b.reach), 1);
-    return buckets.map((bucket, idx) => ({
+    const rawData = buckets.map((bucket, idx) => ({
       label: dayLabels[idx],
       value: bucket.reach,
       count: bucket.count,
       height: Math.round((bucket.reach / max) * 180),
     }));
-  }, [media]);
 
-  // Monthly aggregation for Time Analysis
+    return [...rawData].sort((a, b) => {
+      const aVal = daySortBy === "reach" ? a.value : a.count;
+      const bVal = daySortBy === "reach" ? b.value : b.count;
+      return daySort === "desc" ? bVal - aVal : aVal - bVal;
+    });
+  }, [media, daySort, daySortBy]);
+
+  // Monthly aggregation with sorting
   const monthlyData = useMemo(() => {
     const buckets: Record<string, { reach: number; likes: number; comments: number; ers: number[] }> = {};
     for (const item of media) {
@@ -64,14 +74,24 @@ export default function Time() {
       const er = getComputedNumber(item, "er");
       if (typeof er === "number") buckets[key].ers.push(er);
     }
-    return Object.entries(buckets).map(([label, v]) => ({
+    const rawData = Object.entries(buckets).map(([label, v]) => ({
       label,
       reach: v.reach,
       likes: v.likes,
       comments: v.comments,
       er: v.ers.length ? v.ers.reduce((s, x) => s + x, 0) / v.ers.length : null,
     }));
-  }, [media]);
+
+    return [...rawData].sort((a, b) => {
+      let aVal: number, bVal: number;
+      switch (monthSortBy) {
+        case "likes": aVal = a.likes; bVal = b.likes; break;
+        case "er": aVal = a.er ?? 0; bVal = b.er ?? 0; break;
+        default: aVal = a.reach; bVal = b.reach;
+      }
+      return monthSort === "desc" ? bVal - aVal : aVal - bVal;
+    });
+  }, [media, monthSort, monthSortBy]);
 
   if (loading) {
     return (
@@ -88,13 +108,25 @@ export default function Time() {
       <div className="content-area space-y-6">
         {/* Performance By Day Of Week */}
         <div className="card">
-          <div className="chart-header">
-            <h3 className="card-title">Performance By Day Of Week</h3>
-            <div className="chart-legend">
-              <div className="legend-item">
-                <span className="legend-dot solid" /> Reach
+          <div className="chart-header flex justify-between items-center">
+            <div>
+              <h3 className="card-title">Performance By Day Of Week</h3>
+              <div className="chart-legend">
+                <div className="legend-item">
+                  <span className="legend-dot solid" /> Reach
+                </div>
               </div>
             </div>
+            <SortDropdown
+              sortBy={daySortBy}
+              sortOrder={daySort}
+              options={[
+                { value: "reach", label: "Alcance" },
+                { value: "count", label: "Publicações" },
+              ]}
+              onSortByChange={(v) => setDaySortBy(v as "reach" | "count")}
+              onSortOrderChange={() => setDaySort(o => o === "desc" ? "asc" : "desc")}
+            />
           </div>
           <div className="bar-chart" style={{ height: 240 }}>
             <div className="bar-chart-y" style={{ fontSize: 10 }}>
@@ -117,32 +149,28 @@ export default function Time() {
 
         {/* Time Analysis Table */}
         <div className="card">
-          <div className="chart-header">
+          <div className="chart-header flex justify-between items-center">
             <h3 className="card-title">Time Analysis</h3>
-            <div className="chart-actions">
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
-              </button>
-              <button className="chart-action-btn" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-              </button>
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground mb-4 flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Media Posted (Data)</span>
+            <SortDropdown
+              sortBy={monthSortBy}
+              sortOrder={monthSort}
+              options={[
+                { value: "reach", label: "Alcance" },
+                { value: "likes", label: "Curtidas" },
+                { value: "er", label: "Engajamento" },
+              ]}
+              onSortByChange={(v) => setMonthSortBy(v as "reach" | "likes" | "er")}
+              onSortOrderChange={() => setMonthSort(o => o === "desc" ? "asc" : "desc")}
+            />
           </div>
           <div className="overflow-x-auto">
             <table className="data-table w-full">
               <thead>
                 <tr>
                   <th></th>
-                  <th>Media reach</th>
-                  <th>Engagement rate</th>
-                  <th>Likes</th>
+                  <th>Media reach {monthSortBy === "reach" && (monthSort === "desc" ? "▼" : "▲")}</th>
+                  <th>Engagement rate {monthSortBy === "er" && (monthSort === "desc" ? "▼" : "▲")}</th>
+                  <th>Likes {monthSortBy === "likes" && (monthSort === "desc" ? "▼" : "▲")}</th>
                   <th>Comments</th>
                 </tr>
               </thead>
